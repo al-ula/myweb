@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="{{default_theme}}">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="/static/style.css" rel="stylesheet" />
+    <title>{{title}}</title>
+</head>
+
+<body class="flex flex-col bg-black h-screen">
+    <div id="header" class="flex-none">
+        {{> navbar}}
+    </div>
+    <div id="main-wrapper" class="relative flex flex-grow bg-base-100">
+        <main id="main" class="relative flex-grow grid grid-cols-4 bg-base-200 p-2 lex-grow">
+            <div id="content-wrapper" class="col-span-3 bg-base-100 mr-1 p-2">
+                content
+                asfdsffsdfdsf
+                dfgdfgdfgdfgdfgdf
+                dfgdfgdfgdfgdfgdf
+            </div>
+            <div id="aside-wrapper" class="col-span-1 bg-base-100 ml-1 p-2">
+                aside
+            </div>
+        </main>
+
+        {{> overlay}}
+    </div>
+</body>
+
+</html>

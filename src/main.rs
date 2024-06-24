@@ -1,9 +1,47 @@
 mod post;
-use post::{article::Article, Markdown, MarkdownType};
+use handlebars::{to_json, Handlebars};
+use serde::Serialize;
+use serde_json::{Map, Value};
+
+#[derive(Serialize, Debug)]
+struct Menu {
+    name: String,
+    url: String,
+}
+
+fn make_data(menus: Vec<Menu>) -> Map<String, Value> {
+    let mut data = Map::new();
+    data.insert("menus".to_string(), to_json(menus));
+    data.insert("title".to_string(), to_json("ISAALULA"));
+    data.insert("default_theme".to_string(), to_json("mocha"));
+    data.insert("secondary_theme".to_string(), to_json("latte"));
+    data.insert("overlay".to_string(), to_json("overlay"));
+    data
+}
 
 #[tokio::main]
-async fn main() {
-    // println!("{:?}", Article::default());
-    // let markdown: Markdown = r##" # Test "##.to_string().into();
-    // let html = markdown.to_html(MarkdownType::Common).unwrap();
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let menus: Vec<Menu> = vec![
+        Menu {
+            name: "Home".to_string(),
+            url: "/".to_string(),
+        },
+        Menu {
+            name: "Blog".to_string(),
+            url: "/blog".to_string(),
+        },
+        Menu {
+            name: "About".to_string(),
+            url: "/about".to_string(),
+        },
+    ];
+
+    let mut handlebars = Handlebars::new();
+    handlebars.register_template_file("navbar", "templates/components/navbar.hbs")?;
+    handlebars.register_template_file("overlay", "templates/components/overlay.hbs")?;
+    handlebars.register_template_file("layout", "templates/components/main_layout.hbs")?;
+    let data = make_data(menus);
+    let hb = handlebars.render("layout", &data)?;
+    println!("{}", post::Html::new(hb).minify()?);
+    Ok(())
 }
