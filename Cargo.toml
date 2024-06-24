@@ -1,0 +1,16 @@
+[package]
+name = "myweb"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ammonia = "4.0.0"
+chrono = "0.4.38"
+dioxus = "0.5.1"
+handlebars = "5.1.2"
+html-minifier = "5.0.0"
+markdown = "1.0.0-alpha.17"
+serde = "1.0.203"
+serde_json = "1.0.117"
+tokio = { version = "1.38.0", features = ["full"] }
+ulid = "1.1.2"
