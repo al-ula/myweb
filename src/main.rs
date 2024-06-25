@@ -19,8 +19,7 @@ fn make_data(menus: Vec<Menu>) -> Map<String, Value> {
     data
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn index() -> Result<post::Html, Box<dyn std::error::Error>> {
     let menus: Vec<Menu> = vec![
         Menu {
             name: "Home".to_string(),
@@ -41,7 +40,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     handlebars.register_template_file("overlay", "templates/components/overlay.hbs")?;
     handlebars.register_template_file("layout", "templates/components/main_layout.hbs")?;
     let data = make_data(menus);
-    let hb = handlebars.render("layout", &data)?;
-    println!("{}", post::Html::new(hb).minify()?);
+    let hb = post::Html::new(handlebars.render("layout", &data)?);
+    Ok(hb)
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let hb = index().await?;
+    println!("{}", hb.minify()?);
     Ok(())
 }
