@@ -6,10 +6,11 @@ edition = "2021"
 [dependencies]
 ammonia = "4.0.0"
 chrono = "0.4.38"
-dioxus = "0.5.1"
+figment = "0.10.19"
 handlebars = "5.1.2"
-html-minifier = "5.0.0"
 markdown = "1.0.0-alpha.17"
+minify-html = "0.15.0"
+rocket = "0.5.1"
 serde = "1.0.203"
 serde_json = "1.0.117"
 tokio = { version = "1.38.0", features = ["full"] }

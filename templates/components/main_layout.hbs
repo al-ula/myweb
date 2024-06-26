@@ -14,20 +14,14 @@
     </div>
     <div id="main-wrapper" class="relative flex flex-grow bg-base-100">
         <main id="main" class="relative flex-grow grid grid-cols-4 bg-base-200 p-2 lex-grow">
-            <div id="content-wrapper" class="col-span-3 bg-base-100 mr-1 p-2">
-                content
-                asfdsffsdfdsf
-                dfgdfgdfgdfgdfgdf
-                dfgdfgdfgdfgdfgdf
+            <div id="content-wrapper" class="col-span-4 lg:col-span-3 bg-base-100 lg:mr-1 p-2">
+                {{> content}}
             </div>
-            <div id="aside-wrapper" class="col-span-1 bg-base-100 ml-1 p-2">
+            <div id="aside-wrapper" class="lg:col-span-1 bg-base-100 ml-1 p-2 hidden lg:block">
                 aside
             </div>
         </main>
-
-        {{#if overlay}}
         {{> overlay}}
-        {{/if}}
     </div>
 </body>
 

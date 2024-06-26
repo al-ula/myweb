@@ -1,7 +1,6 @@
 target
 .idea
 Cargo.lock
-html-0
 node_modules
 .vscode/*
 dist

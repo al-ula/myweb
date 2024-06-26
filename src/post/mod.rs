@@ -2,8 +2,8 @@ pub mod article;
 
 use ammonia::{clean, is_html};
 use chrono::{DateTime, Utc};
-use html_minifier::minify;
 use markdown::to_html_with_options;
+use minify_html::minify;
 use serde_json::Value;
 use std::fmt::{Display, Error};
 use ulid::Ulid;
@@ -26,10 +26,12 @@ impl Html {
         Html(content)
     }
     pub fn minify(&self) -> Result<Html, Error> {
-        match minify(&self.0) {
-            Ok(minified) => Ok(Html(minified)),
-            Err(_) => Err(std::fmt::Error),
-        }
+        let cfg = minify_html::Cfg {
+            minify_js: true,
+            ..Default::default()
+        };
+        let html = minify(self.to_string().as_bytes(), &cfg);
+        Ok(Html(String::from_utf8(html).unwrap()))
     }
     pub fn validate(&self) -> bool {
         is_html(&self.0)
