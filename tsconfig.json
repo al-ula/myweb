@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+      "target": "es2020",
+      "module": "es2020",
+      "rootDir": "./tsrc",
+      "outDir": "./static",
+      "strict": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true
+    },
+    "include": ["tsrc/**/*"],
+    "exclude": ["node_modules"]
+  }

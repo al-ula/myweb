@@ -1,0 +1,1 @@
+function o(){const t=document.documentElement.getAttribute("data-theme"),e=document.getElementsByClassName("theme-controller")[0];let c=localStorage.getItem("theme"),l=e.checked;c===t?e.checked=!1:c===e.value?e.checked=!0:e.checked=!1,e.addEventListener("click",()=>{l=e.checked,l===!0?localStorage.setItem("theme",e.value):localStorage.setItem("theme",t)})}o();

@@ -1,36 +1,13 @@
-<div id="overlay-wrapper" class="z-10 absolute flex-grow hidden grid grid-cols-4 p-2 w-screen h-full">
-    <div id="overlay" class="col-span-3 bg-base-300/60 mr-1 p-2">
+<div id="overlay-wrapper" class="z-10 absolute flex-grow hidden grid-cols-4 p-2 w-screen h-full">
+    <div id="overlay" class="col-span-2 bg-base-300/60 p-2">
     </div>
-    <div id="overlay-aside" class="col-span-1 bg-base-300 ml-1 p-2">
+    <div id="overlay-aside" class="col-span-2 bg-base-300 p-2">
         <div id="overlay-menu">
             {{#each menus}}
-            <div class="flex mb-2 rounded font-normal btn btn-ghost"><a href="{{url}}">{{name}}</a></div>
+            <a class="flex mb-2 rounded font-normal btn btn-ghost" href="{{url}}">{{name}}</a>
             {{/each}}
         </div>
+        {{> aside}}
     </div>
-    <script>
-        function overlayController() {
-            const sideBtn = document.getElementById('side-btn')
-            const overlayWrapper = document.getElementById('overlay-wrapper')
-            const overlayAside = document.getElementById('overlay-aside')
-
-            sideBtn.addEventListener('click', () => {
-                if (!overlayWrapper.classList.contains('hidden')) {
-                    overlayWrapper.classList.add('hidden')
-                }
-                else {
-                    overlayWrapper.classList.remove('hidden')
-                }
-                console.log("side-btn clicked")
-                console.log("overlay hidden is " + overlayWrapper.classList.contains('hidden'))
-            })
-            overlayWrapper.addEventListener('click', (e) => {
-                if (!overlayAside.contains(e.target) && !overlayWrapper.classList.contains('hidden')) {
-                    overlayWrapper.classList.add('hidden')
-                }
-            })
-
-        }
-        overlayController()
-    </script>
+    <script src="/static/overlay.js"></script>
 </div>

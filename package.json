@@ -1,10 +1,13 @@
 {
 	"scripts": {
-		"css": "tailwindcss -i ./input.css -o ./static/style.css --watch"
+		"css": "tailwindcss -i ./css/input.css -o ./css/style.css --minify --watch",
+		"build": "tsc && vite build"
 	},
-	"dependencies": {
+	"devDependencies": {
 		"@catppuccin/daisyui": "^1.1.1",
 		"daisyui": "^4.12.7",
-		"tailwindcss": "^3.4.4"
+		"tailwindcss": "^3.4.4",
+		"typescript": "^5.5.2",
+		"vite": "^5.3.1"
 	}
 }
