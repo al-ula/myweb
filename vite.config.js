@@ -4,7 +4,7 @@ import { resolve } from 'path';
 export default defineConfig({
   build: {
     outDir: 'static',
-    emptyOutDir: true,
+    emptyOutDir: false,
     rollupOptions: {
       input: {
         style: resolve(__dirname, 'css/style.css'),

@@ -5,7 +5,11 @@ import catppuccin from "@catppuccin/daisyui";
 export default {
   content: ["./templates/**/*.{html,hbs}", "./src/**/*.{rs}"],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        hasklig: ["Hasklig"],
+      },
+    },
   },
   plugins: [daisyui],
   daisyui: {
