@@ -1,4 +1,5 @@
 mod post;
+
 use figment::{
     providers::{Env, Format, Serialized, Toml},
     Figment, Profile,
@@ -13,6 +14,7 @@ use rocket::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use tokio::fs;
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
@@ -23,7 +25,7 @@ async fn main() -> Result<(), rocket::Error> {
         .select(Profile::from_env_or("MY_WEB_PROFILE", "default"));
     let _rocket = rocket::custom(&figment)
         .attach(AdHoc::config::<Config>())
-        .mount("/", routes![index, page])
+        .mount("/", routes![index, page, blog])
         .mount(
             "/static",
             rocket::fs::FileServer::from(
@@ -44,10 +46,10 @@ struct Menu {
     url: String,
 }
 
-fn make_data(menus: Vec<Menu>) -> Map<String, Value> {
+fn make_data(menus: Vec<Menu>, title: &str) -> Map<String, Value> {
     let mut data = Map::new();
     data.insert("menus".to_string(), to_json(menus));
-    data.insert("title".to_string(), to_json("ISAALULA"));
+    data.insert("title".to_string(), to_json(title));
     data.insert("default_theme".to_string(), to_json("mocha"));
     data.insert("secondary_theme".to_string(), to_json("latte"));
     data.insert("parent".to_string(), to_json("layout"));
@@ -57,7 +59,27 @@ fn make_data(menus: Vec<Menu>) -> Map<String, Value> {
 async fn make_page(
     template_path: &str,
     page_name: &str,
+    data: Map<String, Value>,
 ) -> Result<post::Html, Box<dyn std::error::Error>> {
+    let page_template = format!("./templates/{}.hbs", page_name);
+    let mut handlebars = Handlebars::new();
+    handlebars
+        .register_template_file("navbar", format!("{}/components/navbar.hbs", template_path))?;
+    handlebars.register_template_file(
+        "overlay",
+        format!("{}/components/overlay.hbs", template_path),
+    )?;
+    handlebars.register_template_file(
+        "layout",
+        format!("{}/components/main_layout.hbs", template_path),
+    )?;
+    handlebars.register_template_file(page_name, page_template)?;
+    let hb = Html::new(handlebars.render(page_name, &data)?).minify()?;
+    Ok(hb)
+}
+
+#[get("/")]
+async fn index(template_path: &State<Config>) -> RawHtml<String> {
     let menus: Vec<Menu> = vec![
         Menu {
             name: "Blog".to_string(),
@@ -72,58 +94,82 @@ async fn make_page(
             url: "/about".to_string(),
         },
     ];
-    let page_template = format!("./templates/{}.hbs", page_name);
-    let mut handlebars = Handlebars::new();
-    handlebars
-        .register_template_file("navbar", format!("{}/components/navbar.hbs", template_path))?;
-    handlebars.register_template_file(
-        "overlay",
-        format!("{}/components/overlay.hbs", template_path),
-    )?;
-    handlebars.register_template_file(
-        "layout",
-        format!("{}/components/main_layout.hbs", template_path),
-    )?;
-    handlebars.register_template_file(page_name, page_template)?;
-    let data = make_data(menus);
-    let hb = Html::new(handlebars.render(page_name, &data)?).minify()?;
-    Ok(hb)
-}
-
-#[get("/")]
-async fn index(template_path: &State<Config>) -> RawHtml<String> {
+    let data = make_data(menus, "ISAALULA");
     let template_path = &template_path.templates_path;
-    let html = make_page(template_path, "index").await.unwrap();
+    let html = make_page(template_path, "index", data).await.unwrap();
     RawHtml(html.to_string())
 }
 
 #[get("/<page>")]
 async fn page(page: String, template_path: &State<Config>) -> Result<RawHtml<String>, Redirect> {
+    let menus: Vec<Menu> = vec![
+        Menu {
+            name: "Blog".to_string(),
+            url: "/blog".to_string(),
+        },
+        Menu {
+            name: "Projects".to_string(),
+            url: "/projects".to_string(),
+        },
+        Menu {
+            name: "About".to_string(),
+            url: "/about".to_string(),
+        },
+    ];
+    let data = make_data(menus, &page.to_uppercase());
     let template_path = &template_path.templates_path;
+    let page_title: [&str; 3] = ["blog", "projects", "about"];
+    if let Some(title) = page_title.iter().find(|&&t| page == t) {
+        let html = RawHtml(
+            make_page(template_path, title, data)
+                .await
+                .unwrap_or_default()
+                .to_string(),
+        );
+        return Ok(html);
+    }
     match page.as_str() {
         "index" => Err(Redirect::to("/")),
-        "blog" => Ok(RawHtml(
-            make_page(template_path, "blog")
-                .await
-                .unwrap_or(Html::new("".to_string()))
-                .to_string(),
-        )),
-        "projects" => Ok(RawHtml(
-            make_page(template_path, "projects")
-                .await
-                .unwrap_or(Html::new("".to_string()))
-                .to_string(),
-        )),
-        "about" => Ok(RawHtml(
-            make_page(template_path, "about")
-                .await
-                .unwrap_or(Html::new("".to_string()))
-                .to_string(),
-        )),
         _ => Ok(RawHtml(
             Html::new("404 page not found".to_string()).to_string(),
         )),
     }
+}
+
+#[get("/blog/<blog_post>")]
+async fn blog(
+    blog_post: String,
+    template_path: &State<Config>,
+) -> Result<RawHtml<String>, Redirect> {
+    let menus: Vec<Menu> = vec![
+        Menu {
+            name: "Blog".to_string(),
+            url: "/blog".to_string(),
+        },
+        Menu {
+            name: "Projects".to_string(),
+            url: "/projects".to_string(),
+        },
+        Menu {
+            name: "About".to_string(),
+            url: "/about".to_string(),
+        },
+    ];
+    let blog_content = fs::read_to_string(format!("articles/blog/{}.md", blog_post))
+        .await
+        .expect("Failed to read blog content");
+    let html = post::Markdown::new(blog_content)
+        .to_html(post::MarkdownType::Common)
+        .unwrap()
+        .to_string();
+    let mut data = make_data(menus, "Post");
+    data.insert("blog_post".to_string(), to_json(&html));
+    let template_path = &template_path.templates_path;
+    let html = make_page(template_path, "blog_post", data)
+        .await
+        .unwrap_or_default()
+        .to_string();
+    Ok(RawHtml(html))
 }
 
 #[derive(Debug, Deserialize, Serialize)]
