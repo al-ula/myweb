@@ -1,0 +1,31 @@
+[package]
+name = "default"
+author = "Isa Al Ula"
+
+[templates]
+pages = ["about", "blog", "projects", "index", "blog_post"]
+components = ["main_layout", "navbar", "overlay"]
+
+[pages]
+[index]
+# inherit through content import from parent
+inherit = "main_layout"
+[about]
+inherit = "main_layout"
+[blog]
+inherit = "main_layout"
+[projects]
+inherit = "main_layout"
+[blog_post]
+inherit = "main_layout"
+raw_html = ["blog_post"]
+
+[components]
+[main_layout]
+import = ["navbar", "overlay"]
+inheritor = ["content"]
+data = ["title", "default_theme"]
+[navbar]
+data = ["menus", "secondary_theme"]
+[overlay]
+data = ["menus"]

@@ -4,7 +4,7 @@ import catppuccin from "@catppuccin/daisyui";
 import typography from "@tailwindcss/typography";
 
 export default {
-  content: ["./templates/**/*.{html,hbs}", "./src/**/*.rs"],
+  content: ["./templates/**/*.{html,hbs}"],
   theme: {
     extend: {
       fontFamily: {

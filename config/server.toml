@@ -10,8 +10,7 @@ port = 8000
 # temp_dir = "/tmp"
 # cli_colors = true
 # secret_key = "hPrYyЭRiMyµ5sBB1π+CMæ1køFsåqKvBiQJxBVHQk="
-static_path = "static"
-template_path = "templates"
+theme = "default"
 
 # [default.limits]
 # form = "64 kB"

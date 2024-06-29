@@ -23,17 +23,18 @@ async fn main() -> Result<(), rocket::Error> {
         .merge(Toml::file("config/server.toml").nested())
         .merge(Env::prefixed("MY_WEB_").global())
         .select(Profile::from_env_or("MY_WEB_PROFILE", "default"));
+
+    let theme = &figment
+        .extract::<Config>()
+        .expect("Failed to extract config")
+        .theme;
+    println!("Theme: {}", theme);
     let _rocket = rocket::custom(&figment)
         .attach(AdHoc::config::<Config>())
         .mount("/", routes![index, page, blog])
         .mount(
             "/static",
-            rocket::fs::FileServer::from(
-                &figment
-                    .extract::<Config>()
-                    .expect("Failed to extract config")
-                    .static_path,
-            ),
+            rocket::fs::FileServer::from(format!("theme/{}/static", theme).as_str()),
         )
         .launch()
         .await?;
@@ -61,7 +62,7 @@ async fn make_page(
     page_name: &str,
     data: Map<String, Value>,
 ) -> Result<post::Html, Box<dyn std::error::Error>> {
-    let page_template = format!("./templates/{}.hbs", page_name);
+    let page_template = format!("{}/{}.hbs", template_path, page_name);
     let mut handlebars = Handlebars::new();
     handlebars
         .register_template_file("navbar", format!("{}/components/navbar.hbs", template_path))?;
@@ -79,7 +80,7 @@ async fn make_page(
 }
 
 #[get("/")]
-async fn index(template_path: &State<Config>) -> RawHtml<String> {
+async fn index(config: &State<Config>) -> RawHtml<String> {
     let menus: Vec<Menu> = vec![
         Menu {
             name: "Blog".to_string(),
@@ -95,13 +96,14 @@ async fn index(template_path: &State<Config>) -> RawHtml<String> {
         },
     ];
     let data = make_data(menus, "ISAALULA");
-    let template_path = &template_path.templates_path;
-    let html = make_page(template_path, "index", data).await.unwrap();
+    let template_path = format!("theme/{}/templates", &config.theme);
+    println!("Template path: {}", template_path);
+    let html = make_page(&template_path, "index", data).await.unwrap();
     RawHtml(html.to_string())
 }
 
 #[get("/<page>")]
-async fn page(page: String, template_path: &State<Config>) -> Result<RawHtml<String>, Redirect> {
+async fn page(page: String, config: &State<Config>) -> Result<RawHtml<String>, Redirect> {
     let menus: Vec<Menu> = vec![
         Menu {
             name: "Blog".to_string(),
@@ -117,11 +119,11 @@ async fn page(page: String, template_path: &State<Config>) -> Result<RawHtml<Str
         },
     ];
     let data = make_data(menus, &page.to_uppercase());
-    let template_path = &template_path.templates_path;
+    let template_path = format!("theme/{}/templates", &config.theme);
     let page_title: [&str; 3] = ["blog", "projects", "about"];
     if let Some(title) = page_title.iter().find(|&&t| page == t) {
         let html = RawHtml(
-            make_page(template_path, title, data)
+            make_page(&template_path, title, data)
                 .await
                 .unwrap_or_default()
                 .to_string(),
@@ -137,10 +139,7 @@ async fn page(page: String, template_path: &State<Config>) -> Result<RawHtml<Str
 }
 
 #[get("/blog/<blog_post>")]
-async fn blog(
-    blog_post: String,
-    template_path: &State<Config>,
-) -> Result<RawHtml<String>, Redirect> {
+async fn blog(blog_post: String, config: &State<Config>) -> Result<RawHtml<String>, Redirect> {
     let menus: Vec<Menu> = vec![
         Menu {
             name: "Blog".to_string(),
@@ -164,8 +163,8 @@ async fn blog(
         .to_string();
     let mut data = make_data(menus, "Post");
     data.insert("blog_post".to_string(), to_json(&html));
-    let template_path = &template_path.templates_path;
-    let html = make_page(template_path, "blog_post", data)
+    let template_path = format!("theme/{}/templates", &config.theme);
+    let html = make_page(&template_path, "blog_post", data)
         .await
         .unwrap_or_default()
         .to_string();
@@ -174,15 +173,13 @@ async fn blog(
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
-    static_path: String,
-    templates_path: String,
+    theme: String,
 }
 
 impl Default for Config {
     fn default() -> Config {
         Config {
-            static_path: String::from("static"),
-            templates_path: String::from("templates"),
+            theme: "default".to_string(),
         }
     }
 }
