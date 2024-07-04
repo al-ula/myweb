@@ -11,6 +11,7 @@ port = 8000
 # cli_colors = true
 # secret_key = "hPrYyЭRiMyµ5sBB1π+CMæ1køFsåqKvBiQJxBVHQk="
 theme = "default"
+theme_dir = "theme"
 
 # [default.limits]
 # form = "64 kB"
