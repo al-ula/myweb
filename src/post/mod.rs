@@ -66,7 +66,7 @@ impl Markdown {
                     Err(_) => Err(std::fmt::Error),
                 }
             }
-            MarkdownType::GFM => match to_html_with_options(&self.0, &markdown::Options::gfm()) {
+            MarkdownType::Gfm => match to_html_with_options(&self.0, &markdown::Options::gfm()) {
                 Ok(html) => Ok(Html(html)),
                 Err(_) => Err(std::fmt::Error),
             },
@@ -76,7 +76,7 @@ impl Markdown {
 
 pub enum MarkdownType {
     Common,
-    GFM,
+    Gfm,
 }
 
 #[derive(Default, Clone, Debug)]
