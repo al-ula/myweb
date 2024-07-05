@@ -3,3 +3,6 @@ target
 **/**/node_modules
 **/*.sh
 **/*.tar.gz
+bench
+.idea
+.config

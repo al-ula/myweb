@@ -1,5 +1,7 @@
 mod post;
 
+use async_trait::async_trait;
+use chrono::Duration;
 use figment::{
     providers::{Env, Format, Serialized, Toml},
     Figment, Profile,
@@ -14,10 +16,16 @@ use rocket::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use std::io::Error as IoError;
-use std::{collections::HashMap, fmt::Error, io::ErrorKind, path::PathBuf};
-use tokio::fs::{self, read_to_string};
-type TemplatePool = HashMap<String, Result<String, Error>>;
+use std::{
+    collections::HashMap,
+    error::Error,
+    io::ErrorKind,
+    path::{Path, PathBuf},
+};
+use std::{io::Error as IoError, sync::Arc};
+use tokio::{fs::read_to_string, sync::RwLock, time::Instant};
+type TemplatePool = Arc<RwLock<HashMap<String, Result<String, Box<dyn Error + Send + Sync>>>>>;
+type PageCache = Arc<RwLock<HashMap<String, (String, Instant)>>>;
 
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
@@ -27,7 +35,7 @@ async fn main() -> Result<(), rocket::Error> {
         .merge(Env::prefixed("MY_WEB_").global())
         .select(Profile::from_env_or("MY_WEB_PROFILE", "default"));
 
-    let theme_dir = figment
+    let theme_dir = &figment
         .extract::<Config>()
         .expect("Failed to extract config")
         .theme_dir;
@@ -37,31 +45,20 @@ async fn main() -> Result<(), rocket::Error> {
         .expect("Failed to extract config")
         .theme;
 
-    let template: TemplatePool = [
-        (
-            "layout".to_string(),
-            read_template(true, "main_layout").await,
-        ),
-        ("navbar".to_string(), read_template(true, "navbar").await),
-        ("overlay".to_string(), read_template(true, "overlay").await),
-        (
-            "blog_post".to_string(),
-            read_template(false, "blog_post").await,
-        ),
-        ("blog".to_string(), read_template(false, "blog").await),
-        (
-            "projects".to_string(),
-            read_template(false, "projects").await,
-        ),
-        ("about".to_string(), read_template(false, "about").await),
-        ("index".to_string(), read_template(false, "index").await),
-    ]
-    .into_iter()
-    .collect();
+    let template = match load_all_templates(theme_dir, theme).await {
+        Ok(templates) => Arc::new(RwLock::new(templates)),
+        Err(e) => {
+            eprintln!("Failed to load templates: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let page_cache: PageCache = Arc::new(RwLock::new(HashMap::new()));
 
     let _rocket = rocket::custom(&figment)
         .attach(AdHoc::config::<Config>())
         .manage(template)
+        .manage(page_cache)
         .mount("/", routes![index, page, blog])
         .mount(
             "/static",
@@ -72,14 +69,53 @@ async fn main() -> Result<(), rocket::Error> {
     Ok(())
 }
 
-async fn read_template(is_component: bool, template: &str) -> Result<String, Error> {
+async fn read_template(
+    is_component: bool,
+    template: &str,
+    theme_dir: &Path,
+    theme: &str,
+) -> Result<String, Box<dyn Error + Send + Sync>> {
     let template = match is_component {
         true => format!("components/{}", template),
         false => template.to_owned(),
     };
-    read_to_string(format!("theme/default/templates/{}.hbs", template))
-        .await
-        .map_err(|_| Error)
+    read_to_string(
+        theme_dir
+            .join(theme)
+            .join("templates")
+            .join(template)
+            .with_extension("hbs"),
+    )
+    .await
+    .map_err(|e| e.into())
+}
+
+async fn load_all_templates(
+    theme_dir: &Path,
+    theme: &str,
+) -> Result<
+    HashMap<String, Result<String, Box<dyn Error + Send + Sync>>>,
+    Box<dyn Error + Send + Sync>,
+> {
+    let templates = vec![
+        ("main_layout", true),
+        ("navbar", true),
+        ("overlay", true),
+        ("blog_post", false),
+        ("blog", false),
+        ("projects", false),
+        ("about", false),
+        ("index", false),
+    ];
+
+    let mut template_pool = HashMap::new();
+
+    for (name, is_component) in templates {
+        let content = read_template(is_component, name, theme_dir, theme).await;
+        template_pool.insert(name.to_string(), content);
+    }
+
+    Ok(template_pool)
 }
 
 #[derive(Serialize, Debug)]
@@ -98,38 +134,61 @@ fn make_data(menus: Vec<Menu>, title: &str) -> Map<String, Value> {
     data
 }
 
-fn make_page(
+async fn make_page(
     template: &State<TemplatePool>,
     page_name: &str,
     data: Map<String, Value>,
-) -> Result<post::Html, Box<dyn std::error::Error>> {
-    let page = match template.get_template(page_name) {
-        Ok(page) => page,
-        Err(e) => return Err(Box::new(e)),
-    };
-    let navbar = match template.get_template("navbar") {
-        Ok(navbar) => navbar,
-        Err(e) => return Err(Box::new(e)),
-    };
-    let overlay = match template.get_template("overlay") {
-        Ok(overlay) => overlay,
-        Err(e) => return Err(Box::new(e)),
-    };
-    let layout = match template.get_template("layout") {
-        Ok(layout) => layout,
-        Err(e) => return Err(Box::new(e)),
-    };
+) -> Result<post::Html, Box<dyn Error + Send + Sync>> {
     let mut handlebars = Handlebars::new();
-    handlebars.register_template_string("navbar", navbar)?;
-    handlebars.register_template_string("overlay", overlay)?;
-    handlebars.register_template_string("layout", layout)?;
-    handlebars.register_template_string(page_name, page)?;
+    handlebars.register_template_string("navbar", template.get_template("navbar").await?)?;
+    handlebars.register_template_string("overlay", template.get_template("overlay").await?)?;
+    handlebars.register_template_string("layout", template.get_template("main_layout").await?)?;
+    handlebars.register_template_string(page_name, template.get_template(page_name).await?)?;
     let hb = Html::new(handlebars.render(page_name, &data)?).minify()?;
     Ok(hb)
 }
 
+async fn get_or_generate_page(
+    templates: &State<TemplatePool>,
+    page_cache: &State<PageCache>,
+    page_name: &str,
+    data: Map<String, Value>,
+    cache_duration: Duration,
+    cache_id: &str,
+) -> Result<String, Box<dyn Error + Send + Sync>> {
+    // Try to get the page from the cache
+    {
+        let cache = page_cache.read().await;
+        if let Some((page, timestamp)) = cache.get(cache_id) {
+            if timestamp.elapsed() < cache_duration.to_std()? {
+                return Ok(page.clone());
+            }
+        }
+    }
+
+    // If not in cache or expired, generate the page
+    let generated_page = make_page(templates, page_name, data)
+        .await?
+        .minify()?
+        .to_string();
+
+    // Store the generated page in the cache
+    {
+        let mut cache = page_cache.write().await;
+        cache.insert(
+            cache_id.to_string(),
+            (generated_page.clone(), Instant::now()),
+        );
+    }
+
+    Ok(generated_page)
+}
+
 #[get("/")]
-async fn index(template: &State<TemplatePool>) -> Result<RawHtml<String>, NotFound<String>> {
+async fn index(
+    template: &State<TemplatePool>,
+    page_cache: &State<PageCache>,
+) -> Result<RawHtml<String>, NotFound<String>> {
     let menus: Vec<Menu> = vec![
         Menu {
             name: "Blog".to_string(),
@@ -145,7 +204,15 @@ async fn index(template: &State<TemplatePool>) -> Result<RawHtml<String>, NotFou
         },
     ];
     let data = make_data(menus, "ISAALULA");
-    let html = make_page(template, "index", data);
+    let html = get_or_generate_page(
+        template,
+        page_cache,
+        "index",
+        data,
+        Duration::hours(1),
+        "index",
+    )
+    .await;
     match html {
         Ok(html) => Ok(RawHtml(html.to_string())),
         Err(e) => Err(NotFound(e.to_string())),
@@ -156,6 +223,7 @@ async fn index(template: &State<TemplatePool>) -> Result<RawHtml<String>, NotFou
 async fn page(
     page: &str,
     template: &State<TemplatePool>,
+    page_cache: &State<PageCache>,
 ) -> Result<Result<RawHtml<String>, Redirect>, NotFound<String>> {
     let menus: Vec<Menu> = vec![
         Menu {
@@ -176,7 +244,9 @@ async fn page(
     match page {
         "index" => Ok(Err(Redirect::to("/"))),
         p if page_title.contains(&p) => {
-            let html = make_page(template, p, data);
+            let html =
+                get_or_generate_page(template, page_cache, page, data, Duration::hours(1), page)
+                    .await;
             match html {
                 Ok(html) => Ok(Ok(RawHtml(html.to_string()))),
                 Err(e) => Err(NotFound(e.to_string())),
@@ -190,6 +260,7 @@ async fn page(
 async fn blog(
     blog_post: &str,
     template: &State<TemplatePool>,
+    page_cache: &State<PageCache>,
 ) -> Result<RawHtml<String>, NotFound<String>> {
     let menus: Vec<Menu> = vec![
         Menu {
@@ -205,7 +276,7 @@ async fn blog(
             url: "/about".to_string(),
         },
     ];
-    let blog_content = match fs::read_to_string(format!("articles/blog/{}.md", blog_post)).await {
+    let blog_content = match read_to_string(format!("articles/blog/{}.md", blog_post)).await {
         Ok(s) => s,
         Err(e) => return Err(NotFound(e.to_string())),
     };
@@ -214,9 +285,18 @@ async fn blog(
         Ok(h) => h.to_string(),
         Err(e) => return Err(NotFound(e.to_string())),
     };
-    let mut data = make_data(menus, &blog_post.snake_to_title_case());
+    let title = blog_post.snake_to_title_case();
+    let mut data = make_data(menus, &title);
     data.insert("blog_post".to_string(), to_json(html));
-    let html = make_page(template, "blog_post", data);
+    let html = get_or_generate_page(
+        template,
+        page_cache,
+        "blog_post",
+        data,
+        Duration::hours(1),
+        &title,
+    )
+    .await;
     match html {
         Ok(html) => Ok(RawHtml(html.to_string())),
         Err(e) => Err(NotFound(e.to_string())),
@@ -245,7 +325,12 @@ impl Default for Config {
         .into();
 
         let theme_dir = home_dir.join("my_web/theme");
-
+        if cfg!(debug_assertions) {
+            return Config {
+                theme: "default".to_string(),
+                theme_dir: String::from("theme").into(),
+            };
+        }
         Config {
             theme: "default".to_string(),
             theme_dir,
@@ -280,18 +365,33 @@ impl SnakeToTitleCase for String {
     }
 }
 
+#[async_trait]
 trait GetTemplate {
-    fn get_template(&self, template_name: &str) -> Result<String, IoError>;
+    async fn get_template(
+        &self,
+        template_name: &str,
+    ) -> Result<String, Box<dyn Error + Send + Sync>>;
 }
 
+#[async_trait]
 impl GetTemplate for TemplatePool {
-    fn get_template(&self, template_name: &str) -> Result<String, IoError> {
-        match self.get(template_name) {
-            None => Err(IoError::new(ErrorKind::NotFound, "Failed to get template")),
-            Some(t) => match t.clone() {
-                Ok(s) => Ok(s),
-                Err(_) => Err(IoError::new(ErrorKind::Other, "Failed to read template")),
-            },
+    async fn get_template(
+        &self,
+        template_name: &str,
+    ) -> Result<String, Box<dyn Error + Send + Sync>> {
+        let templates = self.read().await;
+        match templates.get(template_name) {
+            Some(Ok(template)) => Ok(template.to_string()),
+            Some(Err(e)) => Err(IoError::new(
+                ErrorKind::Other,
+                format!("Failed to read template '{}': {}", template_name, e),
+            )
+            .into()),
+            None => Err(IoError::new(
+                ErrorKind::NotFound,
+                format!("Template '{}' not found", template_name),
+            )
+            .into()),
         }
     }
 }

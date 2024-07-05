@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 ammonia = "4.0.0"
+async-trait = "0.1.80"
 chrono = "0.4.38"
 figment = "0.10.19"
 handlebars = "5.1.2"
