@@ -4,3 +4,4 @@ target
 .vscode/*
 dist
 perf.data
+imagecache
