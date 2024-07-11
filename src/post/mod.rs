@@ -1,5 +1,4 @@
 pub mod article;
-
 use ammonia::{clean, is_html};
 use chrono::{DateTime, Utc};
 use markdown::to_html_with_options;
@@ -17,7 +16,7 @@ use ulid::Ulid;
 pub struct Html(String);
 
 #[allow(dead_code)]
-trait Join<T> {
+pub trait Join<T> {
     fn join(&self, other: &T) -> Self;
 }
 impl Display for Html {
@@ -108,6 +107,12 @@ impl From<String> for Markdown {
         Markdown(content)
     }
 }
+impl From<Markdown> for String {
+    fn from(markdown: Markdown) -> Self {
+        markdown.0
+    }
+}
+
 impl Markdown {
     pub fn new(content: String) -> Markdown {
         Markdown(content)

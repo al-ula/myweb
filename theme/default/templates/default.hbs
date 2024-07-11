@@ -1,0 +1,11 @@
+{{#*inline "content"}}
+{{> article}}
+{{/inline}}
+{{> (lookup this "parent")
+    site = site_name
+    title = page_title
+    layout_min = layout_min
+    menus = menus
+    theme = default_theme
+    theme2 = secondary_theme
+}}

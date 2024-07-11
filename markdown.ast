@@ -1,0 +1,248 @@
+Parsed Markdown: Root {
+    children: [
+        Heading {
+            children: [
+                Text {
+                    value: "The Ant's Dilemma",
+                    position: Some(
+                        1:3-1:20 (2-19),
+                    ),
+                },
+            ],
+            position: Some(
+                1:1-1:20 (0-19),
+            ),
+            depth: 1,
+        },
+        Paragraph {
+            children: [
+                Text {
+                    value: "On a bright summer day, a little ant named Arlo was foraging for food. He scurried along the forest floor, his antennae twitching with excitement as he picked up the sweet scent of nectar.",
+                    position: Some(
+                        3:1-3:189 (21-209),
+                    ),
+                },
+            ],
+            position: Some(
+                3:1-3:189 (21-209),
+            ),
+        },
+        Heading {
+            children: [
+                Text {
+                    value: "Discovery",
+                    position: Some(
+                        5:4-5:13 (214-223),
+                    ),
+                },
+            ],
+            position: Some(
+                5:1-5:13 (211-223),
+            ),
+            depth: 2,
+        },
+        Paragraph {
+            children: [
+                Text {
+                    value: "Arlo followed the trail until he stumbled upon a large flower, its petals wide open and inviting. At the center of the flower, a pool of glistening nectar awaited, shimmering in the sunlight. Arlo's eyes widened with delight.",
+                    position: Some(
+                        7:1-7:226 (225-450),
+                    ),
+                },
+            ],
+            position: Some(
+                7:1-7:226 (225-450),
+            ),
+        },
+        Paragraph {
+            children: [
+                Text {
+                    value: "\"Jackpot!\" he exclaimed, rubbing his tiny legs together.",
+                    position: Some(
+                        9:1-9:57 (452-508),
+                    ),
+                },
+            ],
+            position: Some(
+                9:1-9:57 (452-508),
+            ),
+        },
+        Heading {
+            children: [
+                Text {
+                    value: "The First Sip",
+                    position: Some(
+                        11:4-11:17 (513-526),
+                    ),
+                },
+            ],
+            position: Some(
+                11:1-11:17 (510-526),
+            ),
+            depth: 2,
+        },
+        Paragraph {
+            children: [
+                Text {
+                    value: "Arlo cautiously approached the nectar, dipping his antennae in to taste. The sweetness was beyond anything he had ever experienced. He took a small sip, savoring the rich flavor. Each drop seemed to burst with a symphony of sugary delight, overwhelming his senses.",
+                    position: Some(
+                        13:1-13:265 (528-792),
+                    ),
+                },
+            ],
+            position: Some(
+                13:1-13:265 (528-792),
+            ),
+        },
+        Paragraph {
+            children: [
+                Text {
+                    value: "\"This is incredible!\" he thought, taking another, larger sip.",
+                    position: Some(
+                        15:1-15:62 (794-855),
+                    ),
+                },
+            ],
+            position: Some(
+                15:1-15:62 (794-855),
+            ),
+        },
+        Heading {
+            children: [
+                Text {
+                    value: "The Temptation",
+                    position: Some(
+                        17:4-17:18 (860-874),
+                    ),
+                },
+            ],
+            position: Some(
+                17:1-17:18 (857-874),
+            ),
+            depth: 2,
+        },
+        Paragraph {
+            children: [
+                Text {
+                    value: "As Arlo continued to drink, he felt a rush of euphoria. The more he consumed, the more he wanted. The nectar's sweetness wrapped around him like a warm embrace, making him forget all about his duties and the colony waiting for his return.",
+                    position: Some(
+                        19:1-19:239 (876-1114),
+                    ),
+                },
+            ],
+            position: Some(
+                19:1-19:239 (876-1114),
+            ),
+        },
+        Heading {
+            children: [
+                Text {
+                    value: "The Overindulgence",
+                    position: Some(
+                        21:4-21:22 (1119-1137),
+                    ),
+                },
+            ],
+            position: Some(
+                21:1-21:22 (1116-1137),
+            ),
+            depth: 2,
+        },
+        Paragraph {
+            children: [
+                Text {
+                    value: "Arlo lost himself in the pleasure, gulping down the nectar with abandon. He ignored the warning signs from his body, the slight dizziness and the growing heaviness in his legs. All that mattered was the sweet, intoxicating taste.",
+                    position: Some(
+                        23:1-23:230 (1139-1368),
+                    ),
+                },
+            ],
+            position: Some(
+                23:1-23:230 (1139-1368),
+            ),
+        },
+        Paragraph {
+            children: [
+                Text {
+                    value: "Before he knew it, Arlo found himself submerged in the nectar. He struggled to move, his limbs sticky and unresponsive. Panic set in as he realized the danger, but it was too late. The very pleasure that had brought him so much joy now threatened to drown him.",
+                    position: Some(
+                        25:1-25:261 (1370-1630),
+                    ),
+                },
+            ],
+            position: Some(
+                25:1-25:261 (1370-1630),
+            ),
+        },
+        Heading {
+            children: [
+                Text {
+                    value: "The Lesson",
+                    position: Some(
+                        27:4-27:14 (1635-1645),
+                    ),
+                },
+            ],
+            position: Some(
+                27:1-27:14 (1632-1645),
+            ),
+            depth: 2,
+        },
+        Paragraph {
+            children: [
+                Text {
+                    value: "As Arlo's vision blurred, he thought of his fellow ants and the lessons they had shared about moderation and responsibility. He had been so consumed by his desire for pleasure that he had forgotten his duty to his colony and, more importantly, to himself.",
+                    position: Some(
+                        29:1-29:256 (1647-1902),
+                    ),
+                },
+            ],
+            position: Some(
+                29:1-29:256 (1647-1902),
+            ),
+        },
+        Heading {
+            children: [
+                Text {
+                    value: "Conclusion",
+                    position: Some(
+                        31:4-31:14 (1907-1917),
+                    ),
+                },
+            ],
+            position: Some(
+                31:1-31:14 (1904-1917),
+            ),
+            depth: 2,
+        },
+        Paragraph {
+            children: [
+                Text {
+                    value: "In his final moments, Arlo's mind drifted to the warmth of the colony and the camaraderie he had taken for granted. The nectar, once a source of bliss, had become a cautionary tale. Arlo's story would serve as a reminder to his colony about the dangers of overindulgence and the importance of balance in life.",
+                    position: Some(
+                        33:1-33:310 (1919-2228),
+                    ),
+                },
+            ],
+            position: Some(
+                33:1-33:310 (1919-2228),
+            ),
+        },
+        Paragraph {
+            children: [
+                Text {
+                    value: "And so, in the heart of a beautiful flower, surrounded by the nectar that had both delighted and doomed him, Arlo's journey came to an end. His tale lived on, a bittersweet reminder of the fine line between pleasure and peril.",
+                    position: Some(
+                        35:1-35:227 (2230-2456),
+                    ),
+                },
+            ],
+            position: Some(
+                35:1-35:227 (2230-2456),
+            ),
+        },
+    ],
+    position: Some(
+        1:1-35:227 (0-2456),
+    ),
+}

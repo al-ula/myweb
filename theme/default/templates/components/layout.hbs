@@ -5,23 +5,31 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link href="/static/style.css" rel="stylesheet" />
-    <title>{{title}}</title>
+    <title>{{page_title}}</title>
 </head>
 
 <body class="flex flex-col bg-black h-screen">
     <div id="header" class="flex-none">
-        {{> navbar}}
+        {{> navbar
+            site_name = site_name
+            secondary_theme = secondary_theme
+        }}
     </div>
     <div id="main-wrapper" class="relative flex flex-grow bg-base-100">
         <main id="main" class="relative flex-grow grid grid-cols-4 bg-base-200 p-2 lex-grow">
             <div id="content-wrapper" class="col-span-4 lg:col-span-3 bg-base-100 lg:mr-1 p-2">
                 {{> content}}
             </div>
-            <div id="aside-wrapper" class="lg:col-span-1 bg-base-100 ml-1 p-2 hidden lg:block">
-                {{!-- {{> aside}} --}}
-            </div>
+            {{#if layout_min}}
+            {{else}}
+                <div id="aside-wrapper" class="lg:col-span-1 bg-base-100 ml-1 p-2 hidden lg:block">
+                    {{!-- {{> aside}} --}}
+                </div>
+            {{/if}}
         </main>
-        {{> overlay}}
+        {{> overlay
+            menus = menus
+        }}
     </div>
     <script src="/static/themeconfig.js"></script>
 </body>

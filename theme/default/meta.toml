@@ -1,31 +1,27 @@
-[package]
-name = "default"
+[theme]
+name = "Default"
+version = "0.1.0"
 author = "Isa Al Ula"
+static_path = "static"
+templates_path = "templates"
 
-[templates]
-pages = ["about", "blog", "projects", "index", "blog_post"]
-components = ["main_layout", "navbar", "overlay"]
+[theme.templates]
+components_path = "components"
 
-[pages]
-[index]
-# inherit through content import from parent
-inherit = "main_layout"
-[about]
-inherit = "main_layout"
-[blog]
-inherit = "main_layout"
-[projects]
-inherit = "main_layout"
-[blog_post]
-inherit = "main_layout"
-raw_html = ["blog_post"]
+[[theme.templates.templates]]
+name = "default"
 
-[components]
-[main_layout]
-import = ["navbar", "overlay"]
-inheritor = ["content"]
-data = ["title", "default_theme"]
-[navbar]
-data = ["menus", "secondary_theme"]
-[overlay]
-data = ["menus"]
+[[theme.templates.components]]
+name = "404"
+
+[[theme.templates.components]]
+name = "blog"
+
+[[theme.templates.components]]
+name = "layout"
+
+[[theme.templates.components]]
+name = "navbar"
+
+[[theme.templates.components]]
+name = "overlay"
