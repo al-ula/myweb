@@ -1,16 +1,20 @@
 pub mod article;
 use ammonia::{clean, is_html};
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use markdown::to_html_with_options;
+use markdown::{mdast, to_html_with_options};
 use minify_html::minify;
 use rocket::response::content::RawHtml;
 use serde_json::Value;
 use std::{
     error::Error,
     fmt::{self, Display},
-    io,
+    io::{self},
 };
+
 use ulid::Ulid;
+
+use crate::StringCutter;
 
 #[derive(Default, Clone, Debug)]
 pub struct Html(String);
@@ -130,6 +134,60 @@ impl Markdown {
                 Err(e) => Err(e.to_string().into()),
             },
         }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct ArticlePrev {
+    title: String,
+    body: String,
+}
+
+#[async_trait]
+pub trait PreviewArticle {
+    async fn preview(&self) -> Result<ArticlePrev, Box<dyn Error + Send + Sync>>;
+}
+
+#[async_trait]
+impl PreviewArticle for Markdown {
+    async fn preview(&self) -> Result<ArticlePrev, Box<dyn Error + Send + Sync>> {
+        let ast = match markdown::to_mdast(&self.to_string(), &Default::default()) {
+            Ok(a) => a,
+            Err(e) => return Err(e.to_string().into()),
+        };
+        let art = ArticlePrev {
+            title: match ast.children() {
+                Some(r) => match r.iter().find_map(|r| match r {
+                    mdast::Node::Heading(h) => match h.depth {
+                        1 => h.children.iter().find_map(|n| match n {
+                            mdast::Node::Text(t) => Some(t.value.to_string()),
+                            _ => None,
+                        }),
+                        _ => None,
+                    },
+                    _ => None,
+                }) {
+                    Some(s) => s,
+                    None => return Err("Failed to find heading".into()),
+                },
+                None => return Err("Failed to parse article".into()),
+            },
+            body: match ast.children() {
+                Some(r) => match r.iter().find_map(|r| match r {
+                    mdast::Node::Paragraph(p) => Some(p.children.iter().find_map(|n| match n {
+                        mdast::Node::Text(t) => Some(t.value.to_string()),
+                        _ => None,
+                    })),
+                    _ => None,
+                }) {
+                    Some(Some(s)) => s.cut_to_length(200).join(&"...".to_string()),
+                    Some(None) | None => return Err("Failed to find paragraph".into()),
+                },
+                None => return Err("Failed to parse article".into()),
+            },
+        };
+        Ok(art)
     }
 }
 

@@ -1,27 +1,40 @@
-[theme]
 name = "Default"
 version = "0.1.0"
 author = "Isa Al Ula"
 static_path = "static"
 templates_path = "templates"
 
-[theme.templates]
+[templates]
 components_path = "components"
 
-[[theme.templates.templates]]
+[[templates.templates]]
 name = "default"
+path = "default"
+components = ["parent", "article"]
+override_components = ["content"]
 
-[[theme.templates.components]]
-name = "404"
-
-[[theme.templates.components]]
-name = "blog"
-
-[[theme.templates.components]]
+[[templates.components]]
 name = "layout"
+path = "layout"
+components = ["content", "navbar", "overlay"]
+variables = [ ["String", "default_theme"], ["String", "page_title"], ["Bool", "layout_min"] ]
 
-[[theme.templates.components]]
+[[templates.components]]
+name = "404"
+path = "404"
+variables = [ ["String", "message"] ]
+
+[[templates.components]]
+name = "blog"
+path = "blog"
+variables = [ ["Raw", "article"] ]
+
+[[templates.components]]
 name = "navbar"
+path = "navbar"
+variables =  [ ["String", "site_name"], ["String", "secondary_theme"], ["Value", "menus"] ]
 
-[[theme.templates.components]]
+[[templates.components]]
 name = "overlay"
+path = "overlay"
+variables = [ ["Value", "menus"] ]

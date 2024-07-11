@@ -1,14 +1,14 @@
 mod post;
+mod string;
+mod template;
 mod theme;
-use async_trait::async_trait;
-use chrono::{format, Duration};
+use chrono::Duration;
 use figment::{
     providers::{Env, Format, Serialized, Toml},
     Figment, Profile,
 };
 use handlebars::{to_json, Handlebars};
-use markdown::mdast;
-use post::{Html, Join, Json, Markdown};
+use post::{Html, Json, Markdown, PreviewArticle};
 use rocket::{
     fairing::AdHoc,
     get,
@@ -17,15 +17,15 @@ use rocket::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+use std::sync::Arc;
 use std::{
     collections::HashMap,
     error::Error,
-    io::ErrorKind,
     path::{Path, PathBuf},
 };
-use std::{io::Error as IoError, sync::Arc};
+use string::*;
+use template::{GetTemplate, TemplatePool};
 use tokio::{fs::read_to_string, sync::RwLock, time::Instant};
-type TemplatePool = Arc<RwLock<HashMap<String, Result<String, Box<dyn Error + Send + Sync>>>>>;
 type PageCache = Arc<RwLock<HashMap<String, (String, Instant)>>>;
 
 #[rocket::main]
@@ -62,9 +62,20 @@ async fn main() -> Result<(), rocket::Error> {
                 .await
                 .unwrap(),
         );
-        let article_prev = preview_article(&markdown).await.unwrap();
+        let article_prev = &markdown.preview().await.unwrap();
+        let theme =
+            match theme::Theme::read(&theme_dir.join(theme).join("meta").with_extension("toml"))
+                .await
+            {
+                Ok(theme) => theme,
+                Err(e) => {
+                    eprintln!("Failed to read theme: {}", e);
+                    std::process::exit(1);
+                }
+            };
         println!("Preview: {:#?}", article_prev);
         println!("Templates: {:#?}", template.read().await);
+        println!("Theme:\n{:#?}", theme);
     }
 
     let _rocket = rocket::custom(&figment)
@@ -165,52 +176,6 @@ impl TryFrom<Json> for Menus {
     fn try_from(json: Json) -> Result<Self, Self::Error> {
         serde_json::from_value(json.into()).map(Menus)
     }
-}
-
-#[derive(Debug)]
-struct ArticlePrev {
-    title: String,
-    body: String,
-}
-
-async fn preview_article(article: &Markdown) -> Result<ArticlePrev, Box<dyn Error + Send + Sync>> {
-    let ast = match markdown::to_mdast(&article.to_string(), &Default::default()) {
-        Ok(a) => a,
-        Err(e) => return Err(e.to_string().into()),
-    };
-
-    let art = ArticlePrev {
-        title: match ast.children() {
-            Some(r) => match r.iter().find_map(|r| match r {
-                mdast::Node::Heading(h) => match h.depth {
-                    1 => h.children.iter().find_map(|n| match n {
-                        mdast::Node::Text(t) => Some(t.value.to_string()),
-                        _ => None,
-                    }),
-                    _ => None,
-                },
-                _ => None,
-            }) {
-                Some(s) => s,
-                None => return Err("Failed to find heading".into()),
-            },
-            None => return Err("Failed to parse article".into()),
-        },
-        body: match ast.children() {
-            Some(r) => match r.iter().find_map(|r| match r {
-                mdast::Node::Paragraph(p) => Some(p.children.iter().find_map(|n| match n {
-                    mdast::Node::Text(t) => Some(t.value.to_string()),
-                    _ => None,
-                })),
-                _ => None,
-            }) {
-                Some(Some(s)) => s.cut_to_length(200).join(&"...".to_string()),
-                Some(None) | None => return Err("Failed to find paragraph".into()),
-            },
-            None => return Err("Failed to parse article".into()),
-        },
-    };
-    Ok(art)
 }
 
 fn make_data(data_list: &[(String, Value)]) -> Map<String, Value> {
@@ -506,113 +471,6 @@ impl Default for Config {
         Config {
             theme: "default".to_string(),
             theme_dir,
-        }
-    }
-}
-trait TitleCase {
-    fn title_case(&self) -> String;
-}
-
-impl TitleCase for &str {
-    fn title_case(&self) -> String {
-        self.split(' ')
-            .map(|s| {
-                s.chars().next().unwrap().to_uppercase().collect::<String>() + s.get(1..).unwrap()
-            })
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
-}
-
-impl TitleCase for String {
-    fn title_case(&self) -> String {
-        self.as_str().title_case()
-    }
-}
-trait SnakeToTitleCase {
-    fn snake_to_title_case(&self) -> String;
-}
-
-impl SnakeToTitleCase for &str {
-    fn snake_to_title_case(&self) -> String {
-        fn capitalize_first_letter(s: &str) -> String {
-            let mut c = s.chars();
-            match c.next() {
-                None => String::new(),
-                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-            }
-        }
-
-        self.split('_')
-            .map(capitalize_first_letter)
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
-}
-
-impl SnakeToTitleCase for String {
-    fn snake_to_title_case(&self) -> String {
-        self.as_str().snake_to_title_case()
-    }
-}
-
-pub trait StringCutter {
-    fn cut_to_length(&self, max_length: usize) -> String;
-}
-
-impl StringCutter for String {
-    fn cut_to_length(&self, max_length: usize) -> String {
-        if self.len() <= max_length {
-            self.clone()
-        } else {
-            self.chars().take(max_length).collect::<String>()
-        }
-    }
-}
-
-impl StringCutter for str {
-    fn cut_to_length(&self, max_length: usize) -> String {
-        if self.len() <= max_length {
-            self.to_string()
-        } else {
-            self.chars().take(max_length).collect::<String>()
-        }
-    }
-}
-
-impl Join<String> for String {
-    fn join(&self, other: &std::string::String) -> String {
-        format!("{}{}", self, &other)
-    }
-}
-
-#[async_trait]
-trait GetTemplate {
-    async fn get_template(
-        &self,
-        template_name: &str,
-    ) -> Result<String, Box<dyn Error + Send + Sync>>;
-}
-
-#[async_trait]
-impl GetTemplate for TemplatePool {
-    async fn get_template(
-        &self,
-        template_name: &str,
-    ) -> Result<String, Box<dyn Error + Send + Sync>> {
-        let templates = self.read().await;
-        match templates.get(template_name) {
-            Some(Ok(template)) => Ok(template.to_string()),
-            Some(Err(e)) => Err(IoError::new(
-                ErrorKind::Other,
-                format!("Failed to read template '{}': {}", template_name, e),
-            )
-            .into()),
-            None => Err(IoError::new(
-                ErrorKind::NotFound,
-                format!("Template '{}' not found", template_name),
-            )
-            .into()),
         }
     }
 }
