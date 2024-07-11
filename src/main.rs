@@ -74,7 +74,7 @@ async fn main() -> Result<(), rocket::Error> {
                 }
             };
         println!("Preview: {:#?}", article_prev);
-        println!("Templates: {:#?}", template.read().await);
+        // println!("Templates: {:#?}", template.read().await);
         println!("Theme:\n{:#?}", theme);
     }
 

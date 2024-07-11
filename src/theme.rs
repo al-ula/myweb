@@ -41,7 +41,6 @@ pub enum Variable {
 impl Theme {
     pub async fn read(path: &PathBuf) -> Result<Theme, Box<dyn Error + Send + Sync>> {
         let theme = read_to_string(path).await?;
-        println!("Theme: {}", &theme);
         de::from_str(&theme).map_err(|e| e.into())
     }
 }
