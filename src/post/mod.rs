@@ -196,34 +196,3 @@ pub enum MarkdownType {
     Common,
     Gfm,
 }
-
-#[derive(Default, Clone, Debug)]
-pub struct Json(Value);
-impl Display for Json {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-impl From<Value> for Json {
-    fn from(content: Value) -> Self {
-        Json(content)
-    }
-}
-impl Json {
-    pub fn new(content: Value) -> Json {
-        Json(content)
-    }
-    pub fn from_str(content: &str) -> Result<Json, Box<dyn Error + Send + Sync>> {
-        let value = serde_json::from_str(content);
-        match value {
-            Ok(value) => Ok(Json(value)),
-            Err(e) => Err(Box::new(e)),
-        }
-    }
-}
-
-impl From<Json> for Value {
-    fn from(val: Json) -> Self {
-        val.0
-    }
-}
