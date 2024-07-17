@@ -1,36 +1,68 @@
 mod account;
+mod admin;
 mod config;
+mod db;
 mod json;
-mod page;
 mod post;
 mod public;
+mod render;
 mod string;
 mod template;
 mod theme;
 
+use admin::{admin_assets, admin_index, admin_page};
 use config::Config;
 use figment::{
     providers::{Env, Format, Serialized, Toml},
     Figment, Profile,
 };
-use page::PageCache;
 use post::{Markdown, PreviewArticle};
-use public::{blog, index, not_found, pages};
-use rocket::{fairing::AdHoc, routes};
+use public::{blog, index, not_found, pages, static_files};
+use render::PageCache;
+use rocket::{fairing::AdHoc, routes, Ignite, Build};
 use std::collections::HashMap;
+use std::error;
 use std::sync::Arc;
+use ammonia::url::quirks::set_port;
 use string::*;
 use template::load_all_templates;
 use tokio::{fs::read_to_string, sync::RwLock};
 
-#[rocket::main]
-async fn main() -> Result<(), rocket::Error> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn error::Error>> {
+    init().await;
+
     let figment = Figment::from(rocket::Config::default())
         .merge(Serialized::defaults(Config::default()))
         .merge(Toml::file("config/server.toml").nested())
         .merge(Env::prefixed("MY_WEB_").global())
         .select(Profile::from_env_or("MY_WEB_PROFILE", "default"));
+    
+    let public = rocket(&figment).await.map_err(|e| e.to_string())?;
+    let admin = rocket_admin(&figment).await.map_err(|e| e.to_string())?;
+    
+    let public_task = tokio::task::spawn(async move {
+        public
+            .launch()
+            .await
+            .expect("Failed to ignite public server")
+    });
+    let admin_task = tokio::task::spawn(async move {
+        admin
+            .launch()
+            .await
+            .expect("Failed to ignite admin server")
+    });
+    let _tasks = tokio::join!(public_task, admin_task);
+    end().await;
+    Ok(())
+}
 
+async fn init() {
+    //     TODO
+}
+
+async fn rocket(figment: &Figment) -> Result<rocket::Rocket<Build>, rocket::Error> {
     let theme_dir = &figment
         .extract::<Config>()
         .expect("Failed to extract config")
@@ -73,16 +105,27 @@ async fn main() -> Result<(), rocket::Error> {
         println!("Theme:\n{:#?}", theme);
     }
 
-    let _rocket = rocket::custom(&figment)
+    let rocket = rocket::custom(&figment)
         .attach(AdHoc::config::<Config>())
         .manage(template)
         .manage(page_cache)
-        .mount("/", routes![index, pages, blog, not_found])
-        .mount(
-            "/static",
-            rocket::fs::FileServer::from(theme_dir.join(theme).join("static")),
-        )
-        .launch()
-        .await?;
-    Ok(())
+        .mount("/", routes![index, static_files, blog, pages, not_found]);
+
+    Ok(rocket)
+}
+
+async fn rocket_admin(figment: &Figment) -> Result<rocket::Rocket<Build>, rocket::Error> {
+    
+    let port = &figment.extract::<Config>().expect("Failed to extract config").admin_port;
+
+    let figment = figment.clone().merge(("port", port));
+
+    let rocket = rocket::custom(&figment)
+        .mount("/", routes![admin_index, admin_assets, admin_page]);
+
+    Ok(rocket)
+}
+
+async fn end() {
+    //     TODO
 }

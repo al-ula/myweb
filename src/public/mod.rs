@@ -1,5 +1,6 @@
 use chrono::Duration;
 use handlebars::to_json;
+use rocket::fs::NamedFile;
 use rocket::{
     get,
     response::{content::RawHtml, status::NotFound, Redirect},
@@ -7,12 +8,14 @@ use rocket::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::path::PathBuf;
 use tokio::fs::read_to_string;
 
+use crate::config::Config;
 use crate::{
     json::Json,
-    page::{get_or_generate_page, make_data, make_page, PageCache},
     post::{Html, Markdown, MarkdownType},
+    render::{get_or_render_page, make_data, render, PageCache},
     template::TemplatePool,
     SnakeToTitleCase, TitleCase,
 };
@@ -79,7 +82,7 @@ pub async fn make_404(template_pool: &State<TemplatePool>, message: &str) -> Htm
         ("message".to_string(), to_json(message)),
     ];
     let data = make_data(&data_list);
-    let html = make_page("default", template_pool, &template_list, data).await;
+    let html = render("default", template_pool, &template_list, data).await;
     match html {
         Ok(html) => html,
         Err(e) => Html::from(format!(
@@ -120,7 +123,7 @@ pub async fn index(
         ("article".to_string(), to_json(r#"<h1>INDEX</h1>"#)),
     ];
     let data = make_data(&data_list);
-    let html = get_or_generate_page(
+    let html = get_or_render_page(
         "default",
         template_pool,
         &template_list,
@@ -141,7 +144,7 @@ pub async fn pages(
     page: &str,
     template_pool: &State<TemplatePool>,
     page_cache: &State<PageCache>,
-) -> Result<Result<RawHtml<String>, Redirect>, NotFound<RawHtml<String>>> {
+) -> Result<RawHtml<String>, NotFound<RawHtml<String>>> {
     let template_list = vec![
         ("default", "default"),
         ("navbar", "navbar"),
@@ -160,7 +163,6 @@ pub async fn pages(
 
     let page_title: [&str; 3] = ["blog", "projects", "about"];
     match page {
-        "index" => Ok(Err(Redirect::to("/"))),
         p if page_title.contains(&p) => {
             data_list.push((
                 "article".to_string(),
@@ -168,7 +170,7 @@ pub async fn pages(
             ));
             data_list.push(("page_title".to_string(), to_json(p.title_case())));
             let data = make_data(&data_list);
-            let html = get_or_generate_page(
+            let html = get_or_render_page(
                 "default",
                 template_pool,
                 &template_list,
@@ -179,7 +181,7 @@ pub async fn pages(
             )
             .await;
             match html {
-                Ok(html) => Ok(Ok(RawHtml(html.to_string()))),
+                Ok(html) => Ok(RawHtml(html.to_string())),
                 Err(e) => Err(NotFound(RawHtml(
                     make_404(template_pool, &e.to_string()).await.to_string(),
                 ))),
@@ -191,62 +193,81 @@ pub async fn pages(
     }
 }
 
-#[get("/blog/<blog_post>")]
+#[get("/<page>/<article>")]
 pub async fn blog(
-    blog_post: &str,
+    page: &str,
+    article: &str,
     template_pool: &State<TemplatePool>,
     page_cache: &State<PageCache>,
 ) -> Result<RawHtml<String>, NotFound<RawHtml<String>>> {
-    let blog_content = match read_to_string(format!("articles/blog/{}.md", blog_post)).await {
-        Ok(s) => s,
-        Err(e) => {
-            return Err(NotFound(RawHtml(
-                make_404(template_pool, &e.to_string()).await.to_string(),
-            )))
-        }
-    };
+    match page {
+        "blog" => {
+            let blog_content = match read_to_string(format!("articles/blog/{}.md", article)).await {
+                Ok(s) => s,
+                Err(e) => {
+                    return Err(NotFound(RawHtml(
+                        make_404(template_pool, &e.to_string()).await.to_string(),
+                    )))
+                }
+            };
 
-    let html = match Markdown::new(blog_content).to_html(MarkdownType::Gfm) {
-        Ok(h) => h.to_string(),
-        Err(e) => {
-            return Err(NotFound(RawHtml(
-                make_404(template_pool, &e.to_string()).await.to_string(),
-            )))
+            let html = match Markdown::new(blog_content).to_html(MarkdownType::Gfm) {
+                Ok(h) => h.to_string(),
+                Err(e) => {
+                    return Err(NotFound(RawHtml(
+                        make_404(template_pool, &e.to_string()).await.to_string(),
+                    )))
+                }
+            };
+            let title = article.snake_to_title_case();
+            let template_list = vec![
+                ("default", "default"),
+                ("navbar", "navbar"),
+                ("overlay", "overlay"),
+                ("layout", "layout"),
+                ("article", "blog"),
+            ];
+            let data_list = [
+                ("parent".to_string(), to_json("layout")),
+                ("site_name".to_string(), to_json("ISAALULA")),
+                ("page_title".to_string(), to_json(&title)),
+                ("layout_min".to_string(), to_json(false)),
+                ("menus".to_string(), to_json(Menus::default())),
+                ("default_theme".to_string(), to_json("mocha")),
+                ("secondary_theme".to_string(), to_json("latte")),
+                ("article".to_string(), to_json(html)),
+            ];
+            let data = make_data(&data_list);
+            let html = get_or_render_page(
+                "default",
+                template_pool,
+                &template_list,
+                data,
+                page_cache,
+                Duration::hours(1),
+                &title,
+            )
+            .await;
+            match html {
+                Ok(html) => Ok(RawHtml(html.to_string())),
+                Err(e) => Err(NotFound(RawHtml(
+                    make_404(template_pool, &e.to_string()).await.to_string(),
+                ))),
+            }
         }
-    };
-    let title = blog_post.snake_to_title_case();
-    let template_list = vec![
-        ("default", "default"),
-        ("navbar", "navbar"),
-        ("overlay", "overlay"),
-        ("layout", "layout"),
-        ("article", "blog"),
-    ];
-    let data_list = [
-        ("parent".to_string(), to_json("layout")),
-        ("site_name".to_string(), to_json("ISAALULA")),
-        ("page_title".to_string(), to_json(&title)),
-        ("layout_min".to_string(), to_json(false)),
-        ("menus".to_string(), to_json(Menus::default())),
-        ("default_theme".to_string(), to_json("mocha")),
-        ("secondary_theme".to_string(), to_json("latte")),
-        ("article".to_string(), to_json(html)),
-    ];
-    let data = make_data(&data_list);
-    let html = get_or_generate_page(
-        "default",
-        template_pool,
-        &template_list,
-        data,
-        page_cache,
-        Duration::hours(1),
-        &title,
-    )
-    .await;
-    match html {
-        Ok(html) => Ok(RawHtml(html.to_string())),
-        Err(e) => Err(NotFound(RawHtml(
-            make_404(template_pool, &e.to_string()).await.to_string(),
-        ))),
+        _ => Err(NotFound(RawHtml(String::from("404")))),
+    }
+}
+
+#[get("/static/<file..>")]
+pub async fn static_files(
+    file: PathBuf,
+    config: &State<Config>,
+) -> Result<NamedFile, NotFound<RawHtml<String>>> {
+    let theme_dir = &config.theme_dir;
+    let theme = &config.theme;
+    match NamedFile::open(theme_dir.join(theme).join("static").join(file)).await {
+        Ok(nf) => Ok(nf),
+        Err(e) => Err(NotFound(RawHtml(e.to_string()))),
     }
 }

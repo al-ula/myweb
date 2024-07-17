@@ -22,7 +22,7 @@ pub fn make_data(data_list: &[(String, Value)]) -> Map<String, Value> {
     data
 }
 
-pub async fn make_page(
+pub async fn render(
     page_template: &str,
     template_pool: &State<TemplatePool>,
     template_list: &[(&str, &str)],
@@ -36,7 +36,7 @@ pub async fn make_page(
     Ok(hb)
 }
 
-pub async fn get_or_generate_page(
+pub async fn get_or_render_page(
     page_template: &str,
     template_pool: &State<TemplatePool>,
     template_list: &[(&str, &str)],
@@ -46,7 +46,7 @@ pub async fn get_or_generate_page(
     cache_id: &str,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
     if cfg!(debug_assertions) {
-        let generated_page = make_page(page_template, template_pool, template_list, data)
+        let generated_page = render(page_template, template_pool, template_list, data)
             .await?
             .minify()?
             .to_string();
@@ -63,7 +63,7 @@ pub async fn get_or_generate_page(
         }
 
         // If not in cache or expired, generate the page
-        let generated_page = make_page(page_template, template_pool, template_list, data)
+        let generated_page = render(page_template, template_pool, template_list, data)
             .await?
             .minify()?
             .to_string();

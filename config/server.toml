@@ -12,6 +12,7 @@ port = 8000
 # secret_key = "hPrYyЭRiMyµ5sBB1π+CMæ1køFsåqKvBiQJxBVHQk="
 theme = "default"
 theme_dir = "theme"
+db_dir = "db"
 
 # [default.limits]
 # form = "64 kB"

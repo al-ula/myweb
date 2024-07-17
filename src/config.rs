@@ -3,8 +3,10 @@ use std::path::PathBuf;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
+    pub admin_port: u16,
     pub theme: String,
     pub theme_dir: PathBuf,
+    pub db_dir: PathBuf,
 }
 
 impl Default for Config {
@@ -23,15 +25,20 @@ impl Default for Config {
         .into();
 
         let theme_dir = home_dir.join("my_web/theme");
+        let db_dir = home_dir.join("my_web/db");
         if cfg!(debug_assertions) {
             return Config {
+                admin_port: 8001,
                 theme: "default".to_string(),
                 theme_dir: String::from("theme").into(),
+                db_dir: String::from("db").into(),
             };
         }
         Config {
+            admin_port: 8001,
             theme: "default".to_string(),
             theme_dir,
+            db_dir
         }
     }
 }

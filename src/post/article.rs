@@ -1,4 +1,8 @@
-use super::*;
+use std::fmt::Display;
+use chrono::{DateTime, Utc};
+use ulid::Ulid;
+use super::{Html, Markdown};
+
 
 #[derive(Default, Clone, Debug)]
 pub struct Article {
@@ -44,6 +48,6 @@ impl Article {
 
 impl Default for Content {
     fn default() -> Self {
-        Content::Html(Html(String::new()))
+        Content::Html(Html::from(String::new()))
     }
 }
