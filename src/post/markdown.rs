@@ -1,9 +1,9 @@
-use std::error::Error;
-use std::fmt::Display;
-use markdown::{mdast, to_html_with_options};
+use super::{Html, Join};
 use crate::StringCutter;
 use async_trait::async_trait;
-use super::{Join, Html};
+use markdown::{mdast, to_html_with_options};
+use crate::Error;
+use std::fmt::Display;
 
 #[derive(Default, Clone, Debug)]
 pub struct Markdown(String);
@@ -27,10 +27,10 @@ impl Markdown {
     pub fn new(content: String) -> Markdown {
         Markdown(content)
     }
-    pub fn to_html(&self, type_: MarkdownType) -> Result<Html, Box<dyn Error + Send + Sync>> {
+    pub fn to_html(&self, type_: MarkdownType) -> Result<Html, Error> {
         match type_ {
             MarkdownType::Common => {
-                match markdown::to_html_with_options(&self.0, &markdown::Options::default()) {
+                match to_html_with_options(&self.0, &markdown::Options::default()) {
                     Ok(html) => Ok(Html::from(html)),
                     Err(e) => Err(e.to_string().into()),
                 }
@@ -52,12 +52,12 @@ pub struct ArticlePrev {
 
 #[async_trait]
 pub trait PreviewArticle {
-    async fn preview(&self) -> Result<ArticlePrev, Box<dyn Error + Send + Sync>>;
+    async fn preview(&self) -> Result<ArticlePrev, Error>;
 }
 
 #[async_trait]
 impl PreviewArticle for Markdown {
-    async fn preview(&self) -> Result<ArticlePrev, Box<dyn Error + Send + Sync>> {
+    async fn preview(&self) -> Result<ArticlePrev, Error> {
         let ast = match markdown::to_mdast(&self.to_string(), &Default::default()) {
             Ok(a) => a,
             Err(e) => return Err(e.to_string().into()),

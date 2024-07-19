@@ -1,22 +1,24 @@
-use async_trait::async_trait;
 use std::{
-    collections::HashMap,
-    error::Error,
-    io::{Error as IoError, ErrorKind},
+    collections::HashMap
+    ,
     path::Path,
     sync::Arc,
 };
 
-use tokio::{fs::read_to_string, sync::RwLock};
+use async_trait::async_trait;
+use tokio::fs::read_to_string;
 
-pub type TemplatePool = Arc<RwLock<HashMap<String, Result<String, Box<dyn Error + Send + Sync>>>>>;
+use crate::db::mem::Data;
+use crate::Error;
+
+pub type TemplatePool = Data<Box<str>, Result<Arc<str>, String>>;
 
 #[async_trait]
 pub trait GetTemplate {
     async fn get_template(
         &self,
         template_name: &str,
-    ) -> Result<String, Box<dyn Error + Send + Sync>>;
+    ) -> Result<Arc<str>, String>;
 }
 
 #[async_trait]
@@ -24,20 +26,11 @@ impl GetTemplate for TemplatePool {
     async fn get_template(
         &self,
         template_name: &str,
-    ) -> Result<String, Box<dyn Error + Send + Sync>> {
-        let templates = self.read().await;
-        match templates.get(template_name) {
-            Some(Ok(template)) => Ok(template.to_string()),
-            Some(Err(e)) => Err(IoError::new(
-                ErrorKind::Other,
-                format!("Failed to read template '{}': {}", template_name, e),
-            )
-            .into()),
-            None => Err(IoError::new(
-                ErrorKind::NotFound,
-                format!("Template '{}' not found", template_name),
-            )
-            .into()),
+    ) -> Result<Arc<str>, String> {
+        let temp = self.get(&Box::from(template_name)).await.map_err(|e| e.to_string().into_boxed_str())?.ok_or("Template not found")?;
+        match temp { 
+            Ok(t) => Ok(t),
+            Err(e) => Err(e),
         }
     }
 }
@@ -47,12 +40,12 @@ pub async fn read_template(
     template: &str,
     theme_dir: &Path,
     theme: &str,
-) -> Result<String, Box<dyn Error + Send + Sync>> {
+) -> Result<Arc<str>, String> {
     let template = match is_component {
         true => format!("components/{}", template),
         false => template.to_owned(),
     };
-    read_to_string(
+    let theme = read_to_string(
         theme_dir
             .join(theme)
             .join("templates")
@@ -60,15 +53,20 @@ pub async fn read_template(
             .with_extension("hbs"),
     )
     .await
-    .map_err(|e| e.into())
+    .map_err(|e| e.to_string());
+
+    match theme {
+        Ok(theme) => Ok(Arc::from(theme)),
+        Err(e) => Err(e),
+    }
 }
 
 pub async fn load_all_templates(
     theme_dir: &Path,
     theme: &str,
 ) -> Result<
-    HashMap<String, Result<String, Box<dyn Error + Send + Sync>>>,
-    Box<dyn Error + Send + Sync>,
+    HashMap<Box<str>, Result<Arc<str>, String>>,
+    Error,
 > {
     let templates = vec![
         ("layout", true),
@@ -83,7 +81,7 @@ pub async fn load_all_templates(
 
     for (name, is_component) in templates {
         let content = read_template(is_component, name, theme_dir, theme).await;
-        template_pool.insert(name.to_string(), content);
+        template_pool.insert(name.to_string().into_boxed_str(), content);
     }
 
     Ok(template_pool)

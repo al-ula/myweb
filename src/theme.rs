@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::{error::Error, path::PathBuf};
+use std::path::PathBuf;
 use tokio::fs::read_to_string;
 use toml::de;
-
+use crate::Error;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Theme {
     pub name: String,
@@ -39,7 +39,7 @@ pub enum Variable {
 }
 
 impl Theme {
-    pub async fn read(path: &PathBuf) -> Result<Theme, Box<dyn Error + Send + Sync>> {
+    pub async fn read(path: &PathBuf) -> Result<Theme, Error> {
         let theme = read_to_string(path).await?;
         de::from_str(&theme).map_err(|e| e.into())
     }

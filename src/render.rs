@@ -1,17 +1,18 @@
-use std::{collections::HashMap, error::Error, sync::Arc};
-
+use std::{collections::HashMap, sync::Arc};
+use crate::Error;
 use chrono::Duration;
 use handlebars::Handlebars;
 use rocket::State;
 use serde_json::{Map, Value};
 use tokio::{sync::RwLock, time::Instant};
 
-pub type PageCache = Arc<RwLock<HashMap<String, (String, Instant)>>>;
-
 use crate::{
     post::Html,
     template::{GetTemplate, TemplatePool},
 };
+use crate::db::mem::Data;
+
+pub type PageCache = Data<String, (String, Instant)>;
 
 pub fn make_data(data_list: &[(String, Value)]) -> Map<String, Value> {
     let data_list = data_list.to_owned();
@@ -27,10 +28,11 @@ pub async fn render(
     template_pool: &State<TemplatePool>,
     template_list: &[(&str, &str)],
     data: Map<String, Value>,
-) -> Result<Html, Box<dyn Error + Send + Sync>> {
+) -> Result<Html, Error> {
     let mut handlebars = Handlebars::new();
     for t in template_list.iter() {
-        handlebars.register_template_string(t.0, template_pool.get_template(t.1).await?)?;
+        let template = template_pool.get_template(t.1).await?; 
+        handlebars.register_template_string(t.0, template)?;
     }
     let hb = Html::new(handlebars.render(page_template, &data)?).minify()?;
     Ok(hb)
@@ -44,7 +46,7 @@ pub async fn get_or_render_page(
     page_cache: &State<PageCache>,
     cache_duration: Duration,
     cache_id: &str,
-) -> Result<String, Box<dyn Error + Send + Sync>> {
+) -> Result<String, Error> {
     if cfg!(debug_assertions) {
         let generated_page = render(page_template, template_pool, template_list, data)
             .await?
@@ -54,8 +56,8 @@ pub async fn get_or_render_page(
     } else {
         // Try to get the page from the cache
         {
-            let cache = page_cache.read().await;
-            if let Some((page, timestamp)) = cache.get(cache_id) {
+            let cache = page_cache.get(&cache_id.to_string()).await?;
+            if let Some((page, timestamp)) = cache {
                 if timestamp.elapsed() < cache_duration.to_std()? {
                     return Ok(page.clone());
                 }
@@ -70,11 +72,10 @@ pub async fn get_or_render_page(
 
         // Store the generated page in the cache
         {
-            let mut cache = page_cache.write().await;
-            cache.insert(
+            page_cache.insert(
                 cache_id.to_string(),
                 (generated_page.clone(), Instant::now()),
-            );
+            ).await?;
         }
         Ok(generated_page)
     }

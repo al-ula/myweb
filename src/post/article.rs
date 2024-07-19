@@ -1,8 +1,7 @@
-use std::fmt::Display;
-use chrono::{DateTime, Utc};
-use ulid::Ulid;
 use super::{Html, Markdown};
-
+use chrono::{DateTime, Utc};
+use std::fmt::Display;
+use ulid::Ulid;
 
 #[derive(Default, Clone, Debug)]
 pub struct Article {

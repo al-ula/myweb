@@ -72,7 +72,7 @@ impl StringCutter for str {
 }
 
 impl Join<String> for String {
-    fn join(&self, other: &std::string::String) -> String {
-        format!("{}{}", self, &other)
+    fn join(&self, other: &String) -> String {
+        format!("{}{}", self, other)
     }
 }

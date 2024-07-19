@@ -1,24 +1,74 @@
 use chrono::Duration;
 use handlebars::to_json;
 use rocket::fs::NamedFile;
-use rocket::{
-    get,
-    response::{content::RawHtml, status::NotFound, Redirect},
-    State,
-};
+use rocket::{Build, get, response::{content::RawHtml, status::NotFound}, routes, State};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::PathBuf;
+use figment::Figment;
+use rocket::fairing::AdHoc;
 use tokio::fs::read_to_string;
-
 use crate::config::Config;
-use crate::{
-    json::Json,
-    post::{Html, Markdown, MarkdownType},
-    render::{get_or_render_page, make_data, render, PageCache},
-    template::TemplatePool,
-    SnakeToTitleCase, TitleCase,
-};
+use crate::{json::Json, post::{Html, Markdown, MarkdownType}, render::{get_or_render_page, make_data, render, PageCache}, template::TemplatePool, SnakeToTitleCase, TitleCase, theme};
+use crate::post::PreviewArticle;
+use crate::template::load_all_templates;
+
+
+pub async fn launch(figment: &Figment) -> Result<rocket::Rocket<Build>, rocket::Error> {
+    let theme_dir = &figment
+        .extract::<Config>()
+        .expect("Failed to extract config")
+        .theme_dir;
+
+    let theme = &figment
+        .extract::<Config>()
+        .expect("Failed to extract config")
+        .theme;
+
+    let template = match load_all_templates(theme_dir, theme).await {
+        Ok(templates) => TemplatePool::from(
+            false,
+            templates
+        ),
+        Err(e) => {
+            eprintln!("Failed to load templates: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let page_cache: PageCache = PageCache::new(false);
+
+    if cfg!(debug_assertions) {
+        let markdown = Markdown::from(
+            read_to_string("articles/blog/ant_dilemma.md")
+                .await
+                .unwrap(),
+        );
+        let article_prev = &markdown.preview().await.map_err(|e| eprintln!("{}", e));
+        let theme =
+            match theme::Theme::read(&theme_dir.join(theme.as_ref()).join("meta").with_extension("toml"))
+                .await
+            {
+                Ok(theme) => theme,
+                Err(e) => {
+                    eprintln!("Failed to read theme: {}", e);
+                    std::process::exit(1);
+                }
+            };
+        println!("Preview: {:#?}", article_prev);
+        // println!("Templates: {:#?}", template.read().await);
+        println!("Theme:\n{:#?}", theme);
+    }
+
+    let rocket = rocket::custom(figment)
+        .attach(AdHoc::config::<Config>())
+        .manage(template)
+        .manage(page_cache)
+        .mount("/", routes![index, static_files, blog, pages, not_found]);
+
+    Ok(rocket)
+}
+
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Menu {
@@ -62,7 +112,7 @@ impl TryFrom<Json> for Menus {
 pub async fn make_404(template_pool: &State<TemplatePool>, message: &str) -> Html {
     if message == "test" {
         #[allow(unused_variables)]
-        let template = TemplatePool::default();
+        let template = TemplatePool::new(false);
     }
     let template_list = vec![
         ("default", "default"),
@@ -266,7 +316,7 @@ pub async fn static_files(
 ) -> Result<NamedFile, NotFound<RawHtml<String>>> {
     let theme_dir = &config.theme_dir;
     let theme = &config.theme;
-    match NamedFile::open(theme_dir.join(theme).join("static").join(file)).await {
+    match NamedFile::open(theme_dir.join(theme.as_ref()).join("static").join(file)).await {
         Ok(nf) => Ok(nf),
         Err(e) => Err(NotFound(RawHtml(e.to_string()))),
     }

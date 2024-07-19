@@ -6,4 +6,6 @@ dist
 perf.data
 imagecache
 myweb
-db
+bench
+flamegraph.svg
+/db/

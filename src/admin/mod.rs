@@ -1,10 +1,22 @@
 use std::path::{Path, PathBuf};
+use figment::Figment;
+use rocket::{Build, fs::NamedFile, get, response::{status::NotFound, Redirect}, routes};
+use crate::config::Config;
 
-use rocket::{
-    fs::NamedFile,
-    get,
-    response::{status::NotFound, Redirect},
-};
+pub async fn launch(figment: &Figment) -> Result<rocket::Rocket<Build>, rocket::Error> {
+    let port = &figment
+        .extract::<Config>()
+        .expect("Failed to extract config")
+        .admin_port;
+
+    let figment = figment.clone().merge(("port", port));
+
+    let rocket =
+        rocket::custom(figment).mount("/", routes![admin_index, admin_assets, admin_page]);
+
+    Ok(rocket)
+}
+
 
 #[get("/assets/<file..>")]
 pub async fn admin_assets(file: PathBuf) -> Result<NamedFile, NotFound<Redirect>> {

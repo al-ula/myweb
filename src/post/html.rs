@@ -1,15 +1,15 @@
-use std::{fmt, io};
-use std::error::Error;
-use std::fmt::Display;
+use super::Join;
 use ammonia::{clean, is_html};
 use minify_html::minify;
 use rocket::response::content::RawHtml;
-use super::Join;
+use crate::Error;
+use std::fmt::Display;
+use std::{fmt, io};
 #[derive(Default, Clone, Debug)]
 pub struct Html(String);
 
 impl Display for Html {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -28,8 +28,8 @@ impl From<io::Error> for Html {
         Html(format!("<h1>{:?}<h1>", e))
     }
 }
-impl From<Box<dyn Error + Send + Sync>> for Html {
-    fn from(e: Box<dyn Error + Send + Sync>) -> Self {
+impl From<Error> for Html {
+    fn from(e: Error) -> Self {
         Html(format!("<h1>{:?}<h1>", e))
     }
 }
@@ -65,7 +65,7 @@ impl Html {
     pub fn new(content: String) -> Html {
         Html(content)
     }
-    pub fn minify(&self) -> Result<Html, Box<dyn Error + Send + Sync>> {
+    pub fn minify(&self) -> Result<Html, Error> {
         let cfg = minify_html::Cfg {
             minify_js: true,
             ..Default::default()
@@ -81,5 +81,4 @@ impl Html {
     pub fn sanitize(&self) -> Html {
         Html(clean(&self.0))
     }
-    // pub fn encaps(&self) -> Html {}
 }
