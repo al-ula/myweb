@@ -27,11 +27,7 @@ impl GetTemplate for TemplatePool {
         &self,
         template_name: &str,
     ) -> Result<Arc<str>, String> {
-        let temp = self.get(&Box::from(template_name)).await.map_err(|e| e.to_string().into_boxed_str())?.ok_or("Template not found")?;
-        match temp { 
-            Ok(t) => Ok(t),
-            Err(e) => Err(e),
-        }
+        self.get(&Box::from(template_name)).await.map_err(|e| e.to_string().into_boxed_str())?.ok_or("Template not found")?
     }
 }
 
@@ -45,7 +41,7 @@ pub async fn read_template(
         true => format!("components/{}", template),
         false => template.to_owned(),
     };
-    let theme = read_to_string(
+    read_to_string(
         theme_dir
             .join(theme)
             .join("templates")
@@ -53,12 +49,7 @@ pub async fn read_template(
             .with_extension("hbs"),
     )
     .await
-    .map_err(|e| e.to_string());
-
-    match theme {
-        Ok(theme) => Ok(Arc::from(theme)),
-        Err(e) => Err(e),
-    }
+    .map_err(|e| e.to_string()).map(Arc::from)
 }
 
 pub async fn load_all_templates(

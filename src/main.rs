@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn error::Error>> {
     });
     let admin_task =
         tokio::task::spawn(
-            async move { admin.launch().await.expect("Failed to ignite admin server") },
+            async move { admin.launch().await.expect("Failed to launch admin server") },
         );
     let _tasks = tokio::join!(public_task, admin_task);
     Ok(())

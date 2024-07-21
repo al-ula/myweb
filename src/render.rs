@@ -1,10 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 use crate::Error;
 use chrono::Duration;
 use handlebars::Handlebars;
 use rocket::State;
 use serde_json::{Map, Value};
-use tokio::{sync::RwLock, time::Instant};
+use tokio::time::Instant;
 
 use crate::{
     post::Html,
@@ -12,7 +12,7 @@ use crate::{
 };
 use crate::db::mem::Data;
 
-pub type PageCache = Data<String, (String, Instant)>;
+pub type PageCache = Data<String, (Arc<str>, Instant)>;
 
 pub fn make_data(data_list: &[(String, Value)]) -> Map<String, Value> {
     let data_list = data_list.to_owned();
@@ -38,45 +38,39 @@ pub async fn render(
     Ok(hb)
 }
 
-pub async fn get_or_render_page(
+pub async fn render_page(
     page_template: &str,
     template_pool: &State<TemplatePool>,
     template_list: &[(&str, &str)],
     data: Map<String, Value>,
     page_cache: &State<PageCache>,
-    cache_duration: Duration,
     cache_id: &str,
-) -> Result<String, Error> {
-    if cfg!(debug_assertions) {
-        let generated_page = render(page_template, template_pool, template_list, data)
+) -> Result<Arc<str>, Error> {
+        let generated_page: Arc<str> = render(page_template, template_pool, template_list, data)
             .await?
-            .minify()?
-            .to_string();
-        Ok(generated_page)
-    } else {
-        // Try to get the page from the cache
-        {
-            let cache = page_cache.get(&cache_id.to_string()).await?;
-            if let Some((page, timestamp)) = cache {
-                if timestamp.elapsed() < cache_duration.to_std()? {
-                    return Ok(page.clone());
-                }
-            }
-        }
-
-        // If not in cache or expired, generate the page
-        let generated_page = render(page_template, template_pool, template_list, data)
-            .await?
-            .minify()?
-            .to_string();
+            .minify()?.to_string().into();
 
         // Store the generated page in the cache
         {
+            page_cache.delete(&cache_id.to_string()).await?;
             page_cache.insert(
                 cache_id.to_string(),
                 (generated_page.clone(), Instant::now()),
             ).await?;
         }
         Ok(generated_page)
+}
+
+pub async fn get_page(page_cache: &State<PageCache>, cache_duration: Duration, cache_id: &str) -> Result<Option<Arc<str>>, Error> {
+    let cache = page_cache.get(&cache_id.to_string()).await?;
+    if let Some((page, timestamp)) = cache {
+        if timestamp.elapsed() < cache_duration.to_std()? {
+            Ok(Some(page.clone()))
+        } else {
+            page_cache.delete(&cache_id.to_string()).await?;
+            Ok(Some(page.clone()))
+        }
+    } else { 
+        Ok(None)
     }
 }

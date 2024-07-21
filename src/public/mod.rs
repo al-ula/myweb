@@ -1,3 +1,4 @@
+
 use chrono::Duration;
 use handlebars::to_json;
 use rocket::fs::NamedFile;
@@ -5,14 +6,18 @@ use rocket::{Build, get, response::{content::RawHtml, status::NotFound}, routes,
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::PathBuf;
+use std::sync::Arc;
 use figment::Figment;
 use rocket::fairing::AdHoc;
 use tokio::fs::read_to_string;
 use crate::config::Config;
-use crate::{json::Json, post::{Html, Markdown, MarkdownType}, render::{get_or_render_page, make_data, render, PageCache}, template::TemplatePool, SnakeToTitleCase, TitleCase, theme};
+use crate::{
+    json::Json,
+    post::{Html, Markdown, MarkdownType},
+    render::{get_page, render_page, make_data, render, PageCache},
+    template::TemplatePool, SnakeToTitleCase, TitleCase, theme};
 use crate::post::PreviewArticle;
 use crate::template::load_all_templates;
-
 
 pub async fn launch(figment: &Figment) -> Result<rocket::Rocket<Build>, rocket::Error> {
     let theme_dir = &figment
@@ -35,6 +40,8 @@ pub async fn launch(figment: &Figment) -> Result<rocket::Rocket<Build>, rocket::
             std::process::exit(1);
         }
     };
+
+    let menus = Menus::default();
 
     let page_cache: PageCache = PageCache::new(false);
 
@@ -64,6 +71,7 @@ pub async fn launch(figment: &Figment) -> Result<rocket::Rocket<Build>, rocket::
         .attach(AdHoc::config::<Config>())
         .manage(template)
         .manage(page_cache)
+        .manage(menus)
         .mount("/", routes![index, static_files, blog, pages, not_found]);
 
     Ok(rocket)
@@ -76,7 +84,7 @@ pub struct Menu {
     pub url: String,
 }
 #[derive(Deserialize, Serialize, Debug)]
-pub struct Menus(Vec<Menu>);
+pub struct Menus(Arc<[Menu]>);
 
 impl Default for Menus {
     fn default() -> Self {
@@ -93,7 +101,7 @@ impl Default for Menus {
                 name: "About".to_string(),
                 url: "/about".to_string(),
             },
-        ])
+        ].into())
     }
 }
 
@@ -109,24 +117,24 @@ impl TryFrom<Json> for Menus {
     }
 }
 
-pub async fn make_404(template_pool: &State<TemplatePool>, message: &str) -> Html {
+pub async fn make_404(template_pool: &State<TemplatePool>, message: &str, menu: &State<Menus>) -> Html {
     if message == "test" {
         #[allow(unused_variables)]
         let template = TemplatePool::new(false);
     }
-    let template_list = vec![
+    let template_list = Box::new(vec![
         ("default", "default"),
         ("navbar", "navbar"),
         ("overlay", "overlay"),
         ("layout", "layout"),
         ("article", "404"),
-    ];
+    ]);
     let data_list = [
         ("parent".to_string(), to_json("layout")),
         ("site_name".to_string(), to_json("ISAALULA")),
         ("page_title".to_string(), to_json("Not Found")),
         ("layout_min".to_string(), to_json(true)),
-        ("menus".to_string(), to_json(Menus::default())),
+        ("menus".to_string(), to_json(menu.0.clone())),
         ("default_theme".to_string(), to_json("mocha")),
         ("secondary_theme".to_string(), to_json("latte")),
         ("message".to_string(), to_json(message)),
@@ -146,47 +154,66 @@ pub async fn make_404(template_pool: &State<TemplatePool>, message: &str) -> Htm
 }
 
 #[get("/404")]
-pub async fn not_found(template: &State<TemplatePool>) -> RawHtml<String> {
-    RawHtml(make_404(template, "test fatal").await.to_string())
+pub async fn not_found(template: &State<TemplatePool>, menus: &State<Menus>) -> RawHtml<String> {
+    RawHtml(make_404(template, "test fatal", menus).await.to_string())
 }
 
 #[get("/")]
 pub async fn index(
     template_pool: &State<TemplatePool>,
     page_cache: &State<PageCache>,
-) -> Result<RawHtml<String>, NotFound<String>> {
-    let template_list = vec![
+    menus: &State<Menus>,
+) -> Result<RawHtml<Arc<str>>, NotFound<RawHtml<String>>> {
+    let page = "index";
+
+    if !cfg!(debug_assertions){
+        let from_cache = get_page(page_cache, Duration::hours(1), page).await.map_err(|e| e.to_string());
+        let cached: Option<Arc<str>> = match from_cache {
+            Ok(o) => o,
+            Err(e) => return Err(NotFound(RawHtml(
+                make_404(template_pool, &e.to_string(), menus).await.to_string(),
+            ))),
+        };
+
+        if let Some(cached) = cached {
+            return Ok(RawHtml(cached));
+        }
+    }
+
+    let template_list = Box::new(vec![
         ("default", "default"),
         ("navbar", "navbar"),
         ("overlay", "overlay"),
         ("layout", "layout"),
         ("article", "blog"),
-    ];
+    ]);
     let data_list = [
         ("parent".to_string(), to_json("layout")),
         ("site_name".to_string(), to_json("ISAALULA")),
         ("page_title".to_string(), to_json("Isa Al-Ula")),
         ("layout_min".to_string(), to_json(false)),
-        ("menus".to_string(), to_json(Menus::default())),
+        ("menus".to_string(), to_json(menus.0.clone())),
         ("default_theme".to_string(), to_json("mocha")),
         ("secondary_theme".to_string(), to_json("latte")),
         ("article".to_string(), to_json(r#"<h1>INDEX</h1>"#)),
     ];
     let data = make_data(&data_list);
-    let html = get_or_render_page(
+    let html = render_page(
         "default",
         template_pool,
         &template_list,
         data,
         page_cache,
-        Duration::hours(1),
-        "index",
+        page,
     )
     .await;
     match html {
-        Ok(html) => Ok(RawHtml(html.to_string())),
-        Err(e) => Err(NotFound(e.to_string())),
+        Ok(html) => Ok(RawHtml(html)),
+        Err(e) => Err(NotFound(RawHtml(
+            make_404(template_pool, &e.to_string(), menus).await.to_string(),
+        ))),
     }
+
 }
 
 #[get("/<page>")]
@@ -194,51 +221,63 @@ pub async fn pages(
     page: &str,
     template_pool: &State<TemplatePool>,
     page_cache: &State<PageCache>,
-) -> Result<RawHtml<String>, NotFound<RawHtml<String>>> {
-    let template_list = vec![
-        ("default", "default"),
-        ("navbar", "navbar"),
-        ("overlay", "overlay"),
-        ("layout", "layout"),
-        ("article", "blog"),
-    ];
-    let mut data_list = vec![
-        ("parent".to_string(), to_json("layout")),
-        ("site_name".to_string(), to_json("ISAALULA")),
-        ("layout_min".to_string(), to_json(false)),
-        ("menus".to_string(), to_json(Menus::default())),
-        ("default_theme".to_string(), to_json("mocha")),
-        ("secondary_theme".to_string(), to_json("latte")),
-    ];
-
+    menus: &State<Menus>,
+) -> Result<RawHtml<Arc<str>>, NotFound<RawHtml<String>>> {
     let page_title: [&str; 3] = ["blog", "projects", "about"];
     match page {
         p if page_title.contains(&p) => {
+            if !cfg!(debug_assertions){
+                let from_cache = get_page(page_cache, Duration::hours(1), page).await.map_err(|e| e.to_string());
+                let cached: Option<Arc<str>> = match from_cache {
+                    Ok(o) => o,
+                    Err(e) => return Err(NotFound(RawHtml(
+                        make_404(template_pool, &e.to_string(), menus).await.to_string(),
+                    ))),
+                };
+
+                if let Some(cached) = cached {
+                    return Ok(RawHtml(cached));
+                }
+            }
+            let template_list = Box::new(vec![
+                ("default", "default"),
+                ("navbar", "navbar"),
+                ("overlay", "overlay"),
+                ("layout", "layout"),
+                ("article", "blog"),
+            ]);
+            let mut data_list = vec![
+                ("parent".to_string(), to_json("layout")),
+                ("site_name".to_string(), to_json("ISAALULA")),
+                ("layout_min".to_string(), to_json(false)),
+                ("menus".to_string(), to_json(menus.0.clone())),
+                ("default_theme".to_string(), to_json("mocha")),
+                ("secondary_theme".to_string(), to_json("latte")),
+            ];
             data_list.push((
                 "article".to_string(),
                 to_json(format!("<h1>{}</h1>", p.title_case())),
             ));
             data_list.push(("page_title".to_string(), to_json(p.title_case())));
             let data = make_data(&data_list);
-            let html = get_or_render_page(
+            let html = render_page(
                 "default",
                 template_pool,
                 &template_list,
                 data,
                 page_cache,
-                Duration::hours(1),
                 page,
             )
             .await;
             match html {
-                Ok(html) => Ok(RawHtml(html.to_string())),
+                Ok(html) => Ok(RawHtml(html)),
                 Err(e) => Err(NotFound(RawHtml(
-                    make_404(template_pool, &e.to_string()).await.to_string(),
+                    make_404(template_pool, &e.to_string(), menus).await.to_string(),
                 ))),
             }
         }
         _ => Err(NotFound(RawHtml(
-            make_404(template_pool, "page not found").await.to_string(),
+            make_404(template_pool, "page not found", menus).await.to_string(),
         ))),
     }
 }
@@ -249,60 +288,74 @@ pub async fn blog(
     article: &str,
     template_pool: &State<TemplatePool>,
     page_cache: &State<PageCache>,
-) -> Result<RawHtml<String>, NotFound<RawHtml<String>>> {
+    menus: &State<Menus>,
+) -> Result<RawHtml<Arc<str>>, NotFound<RawHtml<String>>> {
     match page {
         "blog" => {
             let blog_content = match read_to_string(format!("articles/blog/{}.md", article)).await {
                 Ok(s) => s,
                 Err(e) => {
                     return Err(NotFound(RawHtml(
-                        make_404(template_pool, &e.to_string()).await.to_string(),
+                        make_404(template_pool, &e.to_string(), menus).await.to_string(),
                     )))
                 }
             };
+            let title = article.snake_to_title_case();
+
+            if !cfg!(debug_assertions){
+                let from_cache = get_page(page_cache, Duration::hours(1), &title).await.map_err(|e| e.to_string());
+                let cached: Option<Arc<str>> = match from_cache {
+                    Ok(o) => o,
+                    Err(e) => return Err(NotFound(RawHtml(
+                        make_404(template_pool, &e.to_string(), menus).await.to_string(),
+                    ))),
+                };
+
+                if let Some(cached) = cached {
+                    return Ok(RawHtml(cached));
+                }
+            }
 
             let html = match Markdown::new(blog_content).to_html(MarkdownType::Gfm) {
                 Ok(h) => h.to_string(),
                 Err(e) => {
                     return Err(NotFound(RawHtml(
-                        make_404(template_pool, &e.to_string()).await.to_string(),
+                        make_404(template_pool, &e.to_string(), menus).await.to_string(),
                     )))
                 }
             };
-            let title = article.snake_to_title_case();
-            let template_list = vec![
+            let template_list = Box::new(vec![
                 ("default", "default"),
                 ("navbar", "navbar"),
                 ("overlay", "overlay"),
                 ("layout", "layout"),
                 ("article", "blog"),
-            ];
+            ]);
             let data_list = [
                 ("parent".to_string(), to_json("layout")),
                 ("site_name".to_string(), to_json("ISAALULA")),
                 ("page_title".to_string(), to_json(&title)),
                 ("layout_min".to_string(), to_json(false)),
-                ("menus".to_string(), to_json(Menus::default())),
+                ("menus".to_string(), to_json(menus.0.clone())),
                 ("default_theme".to_string(), to_json("mocha")),
-                ("secondary_theme".to_string(), to_json("latte")),
+                ("secondary_theme".to_string(), to_json(    "latte")),
                 ("article".to_string(), to_json(html)),
             ];
             let data = make_data(&data_list);
-            let html = get_or_render_page(
+            let html = render_page(
                 "default",
                 template_pool,
                 &template_list,
                 data,
                 page_cache,
-                Duration::hours(1),
                 &title,
             )
             .await;
             match html {
-                Ok(html) => Ok(RawHtml(html.to_string())),
-                Err(e) => Err(NotFound(RawHtml(
-                    make_404(template_pool, &e.to_string()).await.to_string(),
-                ))),
+                Ok(html) => Ok(RawHtml(html)),
+                Err(e) => Err(NotFound(
+                    make_404(template_pool, &e.to_string(), menus).await.into()
+                )),
             }
         }
         _ => Err(NotFound(RawHtml(String::from("404")))),
@@ -316,7 +369,8 @@ pub async fn static_files(
 ) -> Result<NamedFile, NotFound<RawHtml<String>>> {
     let theme_dir = &config.theme_dir;
     let theme = &config.theme;
-    match NamedFile::open(theme_dir.join(theme.as_ref()).join("static").join(file)).await {
+    let file = theme_dir.join(theme.as_ref()).join("static").join(file);
+    match NamedFile::open(file).await {
         Ok(nf) => Ok(nf),
         Err(e) => Err(NotFound(RawHtml(e.to_string()))),
     }

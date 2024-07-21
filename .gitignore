@@ -9,3 +9,5 @@ myweb
 flamegraph.svg
 /db/
 /bench/
+/myweb*
+/perf.data*

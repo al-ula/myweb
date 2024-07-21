@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use figment::Figment;
 use rocket::{Build, fs::NamedFile, get, response::{status::NotFound, Redirect}, routes};
+use rocket::http::Status;
 use crate::config::Config;
 
 pub async fn launch(figment: &Figment) -> Result<rocket::Rocket<Build>, rocket::Error> {
@@ -21,23 +22,22 @@ pub async fn launch(figment: &Figment) -> Result<rocket::Rocket<Build>, rocket::
 #[get("/assets/<file..>")]
 pub async fn admin_assets(file: PathBuf) -> Result<NamedFile, NotFound<Redirect>> {
     let base = Path::new("admin/dist");
-    match NamedFile::open(base.join("assets").join(file)).await {
-        Ok(nf) => Ok(nf),
-        Err(_e) => Err(NotFound(Redirect::to("admin/error"))),
-    }
+    NamedFile::open(base.join("assets").join(file)).await.map_err(|_|NotFound(Redirect::to("admin/error")))
 }
 
 #[get("/<page>")]
-pub async fn admin_page(page: &str) -> NamedFile {
-    let _path = page;
+pub async fn admin_page(page: &str) -> Result<NamedFile, status::Custom<&'static str>> {
+    let _page = page;
     NamedFile::open(Path::new("admin/dist").join("index.html"))
         .await
-        .unwrap()
+        .map_err(|_| status::Custom(Status::InternalServerError, "Failed to open html file"))
 }
 
 #[get("/")]
-pub async fn admin_index() -> NamedFile {
+pub async fn admin_index() -> Result<NamedFile, status::Custom<&'static str>> {
     NamedFile::open(Path::new("admin/dist").join("index.html"))
         .await
-        .unwrap()
+        .map_err(|_| status::Custom(Status::InternalServerError, "Failed to open html file"))
 }
+
+use rocket::response::status;
