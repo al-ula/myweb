@@ -40,7 +40,7 @@ impl <K: Eq + Hash + Clone, V: Clone> Data<K, V> {
     }
 
     pub async fn index_get(&self, index: usize) -> Result<Option<V>, Error> {
-        let key = self.key.as_ref().ok_or("Not an ordered data")?.try_read().map_err(|e| e.to_string())?;
+        let key = self.key.as_ref().ok_or("Not an ordered data".to_string())?.try_read().map_err(|e| e.to_string())?;
         if index < key.len() {
             Ok(self.data.try_read().map_err(|e| e.to_string())?.get(&key[index]).cloned())
         } else {

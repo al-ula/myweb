@@ -75,9 +75,9 @@ impl PreviewArticle for Markdown {
                     _ => None,
                 }) {
                     Some(s) => s,
-                    None => return Err("Failed to find heading".into()),
+                    None => return Err("Failed to find heading".to_string().into()),
                 },
-                None => return Err("Failed to parse article".into()),
+                None => return Err("Failed to parse article".to_string().into()),
             },
             body: match ast.children() {
                 Some(r) => match r.iter().find_map(|r| match r {
@@ -88,9 +88,9 @@ impl PreviewArticle for Markdown {
                     _ => None,
                 }) {
                     Some(Some(s)) => s.cut_to_length(200).join(&"...".to_string()),
-                    Some(None) | None => return Err("Failed to find paragraph".into()),
+                    Some(None) | None => return Err("Failed to find paragraph".to_string().into()),
                 },
-                None => return Err("Failed to parse article".into()),
+                None => return Err("Failed to parse article".to_string().into()),
             },
         };
         Ok(art)

@@ -32,9 +32,9 @@ pub async fn render(
     let mut handlebars = Handlebars::new();
     for t in template_list.iter() {
         let template = template_pool.get_template(t.1).await?; 
-        handlebars.register_template_string(t.0, template)?;
+        handlebars.register_template_string(t.0, template).map_err(|e| format!("Template Error: {}", e))?;
     }
-    let hb = Html::new(handlebars.render(page_template, &data)?).minify()?;
+    let hb = Html::new(handlebars.render(page_template, &data).map_err(|e| format!("Render Error: {}", e))?).minify()?;
     Ok(hb)
 }
 
@@ -64,7 +64,7 @@ pub async fn render_page(
 pub async fn get_page(page_cache: &State<PageCache>, cache_duration: Duration, cache_id: &str) -> Result<Option<Arc<str>>, Error> {
     let cache = page_cache.get(&cache_id.to_string()).await?;
     if let Some((page, timestamp)) = cache {
-        if timestamp.elapsed() < cache_duration.to_std()? {
+        if timestamp.elapsed() < cache_duration.to_std().map_err(|e| format!("Out of range: {}", e))? {
             Ok(Some(page.clone()))
         } else {
             page_cache.delete(&cache_id.to_string()).await?;

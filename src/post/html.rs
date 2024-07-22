@@ -72,7 +72,7 @@ impl Html {
         };
         match String::from_utf8(minify(self.to_string().as_bytes(), &cfg)) {
             Ok(html) => Ok(Html::from(html)),
-            Err(e) => Err(Box::new(e)),
+            Err(e) => Err(e.to_string().into()),
         }
     }
     pub fn validate(&self) -> bool {
